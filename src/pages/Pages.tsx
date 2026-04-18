@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { Plus, Copy, ExternalLink, Trash2, Link as LinkIcon } from "lucide-react";
+import { Plus, Copy, ExternalLink, Trash2, Link as LinkIcon, Sparkles } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import GlassCard from "@/components/GlassCard";
 import NewPageModal from "@/components/NewPageModal";
+import SkillViewerModal from "@/components/SkillViewerModal";
 import { call } from "@/lib/api";
 import { copyToClipboard, timeAgo } from "@/lib/utils";
 import type { Page } from "@/lib/types";
+import landingPageSkillMd from "../../skills/mission-control-landing-page.md?raw";
 
 export default function Pages() {
   const [pages, setPages] = useState<Page[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [skillOpen, setSkillOpen] = useState(false);
 
   useEffect(() => {
     void refresh();
@@ -45,14 +48,45 @@ export default function Pages() {
         title="Pages"
         subtitle="Landing pages your agents publish. Linked to forms. Live URLs. No Webflow required."
         right={
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 transition font-bold tracking-wide"
-          >
-            <Plus size={16} /> New Page
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSkillOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-accent/25 to-purple/25 border border-accent/50 text-white hover:border-accent/80 transition font-bold tracking-wide shadow-glow-accent"
+            >
+              <Sparkles size={16} strokeWidth={2.5} /> Teach Your Agent
+            </button>
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 transition font-bold tracking-wide"
+            >
+              <Plus size={16} /> New Page
+            </button>
+          </div>
         }
       />
+
+      <GlassCard className="mb-6 bg-gradient-to-br from-accent/[0.06] to-purple/[0.06] border-accent/25">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-accent/20 border border-accent/50 flex items-center justify-center shrink-0 shadow-glow-accent">
+            <Sparkles size={22} className="text-accent" strokeWidth={2.3} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-sm tracking-widest uppercase text-accent font-bold mb-1">
+              Front-end dev skill · $1K value · free
+            </div>
+            <p className="text-sm text-white/85 font-medium">
+              Glassmorphic design, glow effects, hover animations, form embeds — all wrapped in one
+              copy-paste skill. Teach any agent to ship beautiful landing pages from a natural-language brief.
+            </p>
+          </div>
+          <button
+            onClick={() => setSkillOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent hover:bg-accent/90 text-black font-display font-black tracking-widest text-xs uppercase shadow-glow-accent shrink-0"
+          >
+            <Sparkles size={14} strokeWidth={3} /> View Skill
+          </button>
+        </div>
+      </GlassCard>
 
       {showEmpty && (
         <GlassCard className="text-center py-16">
@@ -138,6 +172,14 @@ export default function Pages() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreated={(p) => setPages((prev) => [p, ...prev])}
+      />
+
+      <SkillViewerModal
+        open={skillOpen}
+        onClose={() => setSkillOpen(false)}
+        title="Front-end Dev Skill for Landing Pages"
+        description="Paste this into your OpenClaw, Claude Code, Hermes, or any agent runtime. It teaches your agent to chain form.create → page.create, apply glassmorphic styling, glow, hover animations, and ship a live URL in under 30 seconds."
+        skillMarkdown={landingPageSkillMd}
       />
     </>
   );

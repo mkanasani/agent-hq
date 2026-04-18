@@ -237,6 +237,162 @@ Same URL, updated content. The user refreshes — they see the new version.
 
 ---
 
+## Design vocabulary — the look that makes people screenshot
+
+The theme wrapper ships a **dark-futuristic glassmorphic** design system. You
+don't import fonts, write CSS, or design anything. You write HTML that uses
+the vocabulary below, and the output looks like a $5K brand site.
+
+### Glassmorphism (already on every `.card`)
+
+Every element with class `.card` gets:
+
+- Semi-transparent background (`rgba(255,255,255,0.02)`)
+- 20px backdrop blur so the radial-gradient background bleeds through
+- 1px border at 8% white
+- Inset top highlight (1px line of subtle light)
+- 16px rounded corners
+
+Stack cards in a `.features` grid, overlap them on a hero, or use single
+large cards for pull-quotes and proof sections — the glass effect reads
+beautifully at any size.
+
+### Glow (reserved for what matters)
+
+Three glow patterns ship in the theme:
+
+- **Button glow** — `.button` has a permanent accent-color glow. Use it for
+  the primary CTA. Never put glow on more than one button per section.
+- **Card hover glow** — `.card:hover` lifts 2px and gains a 24px accent
+  glow. Automatic. Don't add your own.
+- **Accent pill** — `.eyebrow` is a pill with inset accent-soft background
+  and an accent-tinted border. Use it once above an `<h1>`.
+
+If you want a **custom glow** on a one-off element, inline a style:
+
+```html
+<div class="card" style="box-shadow: 0 0 48px rgba(168,85,247,0.25);">
+  <h3>One-off glow</h3>
+  <p>Use sparingly. Glow is a punctuation mark, not a font.</p>
+</div>
+```
+
+### Hover animations (baked in)
+
+- `.card:hover` — `transform: translateY(-2px)` + border brightens + accent glow appears
+- `.button:hover` — lift 1px + glow intensifies
+- `a:hover` — underline reveal
+
+Do not add more hover animations. Consistency is what makes it feel
+premium; every hover behaving the same is intentional.
+
+### Motion (optional inline additions)
+
+For hero elements you want to animate in, add inline keyframes:
+
+```html
+<style>
+  .hero-fade { opacity: 0; animation: fade-up 800ms ease-out forwards; }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+<section class="hero hero-fade">
+  <span class="eyebrow">Brand</span>
+  <h1>Your headline.</h1>
+</section>
+```
+
+**Rule:** animate at most one element per scroll. Too much motion on a
+landing page feels cheap.
+
+### Gradient headline accents (optional)
+
+`<h1>` already has a gradient from white to the accent color — baked in.
+
+For secondary headings that need to pop, use this inline:
+
+```html
+<h2 style="background: linear-gradient(135deg, var(--ahq-accent), var(--ahq-purple)); -webkit-background-clip: text; background-clip: text; color: transparent;">
+  Secondary headline that glows
+</h2>
+```
+
+### Large stat blocks (high-conversion copy)
+
+The `.stat` class renders an oversized gradient number (3-5rem).
+
+```html
+<div class="card">
+  <div class="stat">93%</div>
+  <p>Of our clients renew annually. Source: internal 2025.</p>
+</div>
+```
+
+Use for proof. One `.stat` per section. Never more than three on a page.
+
+### Typography stack (already loaded)
+
+- **Orbitron** (headings) — geometric, futuristic, 700-900 weight
+- **Rajdhani** (body) — condensed sans-serif, 500 weight default
+- **JetBrains Mono** (code) — auto-applied to `<code>` and `<pre>`
+
+You don't declare any of these. Just use the semantic tag.
+
+---
+
+## Integration chain — the two-call pattern
+
+This is the core pattern every landing page uses. Memorize it.
+
+### STEP A — Create the form (if the page has a contact form)
+
+```bash
+curl -X POST $AGENT_HQ_URL/api/command \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $AGENT_HQ_KEY" \
+  -d '{
+    "action":"form.create",
+    "params":{
+      "slug":"<form-slug>",
+      "title":"<form title shown above the fields>",
+      "description":"<one line under the title>",
+      "fields":[
+        {"name":"<slug>","label":"<Label>","type":"<type>","required":<bool>}
+      ]
+    }
+  }'
+```
+
+### STEP B — Create the page (embedding the form with the marker)
+
+```bash
+curl -X POST $AGENT_HQ_URL/api/command \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $AGENT_HQ_KEY" \
+  -d '{
+    "action":"page.create",
+    "params":{
+      "slug":"<page-slug>",
+      "title":"<browser tab title>",
+      "linked_form_slug":"<same form-slug as step A>",
+      "accent":"#<hex>",
+      "html_body":"<your semantic HTML with {{form:form-slug}} where you want the form>"
+    }
+  }'
+```
+
+The response includes the page record. The live URL is:
+
+```
+<AGENT_HQ_URL>/p/<page-slug>
+```
+
+That's the entire integration. Two POSTs. One URL out.
+
+---
+
 ## Design principles — don't ship ugly
 
 The theme is already beautiful. Your job is to not get in its way.
