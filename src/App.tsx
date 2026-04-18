@@ -5,6 +5,7 @@ import Tasks from "@/pages/Tasks";
 import Activity from "@/pages/Activity";
 import Agents from "@/pages/Agents";
 import Forms from "@/pages/Forms";
+import FormSubmissions from "@/pages/FormSubmissions";
 import Webhooks from "@/pages/Webhooks";
 import Integrations from "@/pages/Integrations";
 import PublicForm from "@/pages/PublicForm";
@@ -34,6 +35,7 @@ function Shell() {
           <Route path="/activity" element={<Activity />} />
           <Route path="/agents" element={<Agents />} />
           <Route path="/forms" element={<Forms />} />
+          <Route path="/forms/:slug" element={<FormSubmissions />} />
           <Route path="/webhooks" element={<Webhooks />} />
           <Route path="/integrations" element={<Integrations />} />
           <Route path="*" element={<Navigate to="/" replace />} />

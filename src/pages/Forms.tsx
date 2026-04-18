@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, Copy, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Plus, Copy, ExternalLink, ArrowRight } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import GlassCard from "@/components/GlassCard";
 import NewFormModal from "@/components/NewFormModal";
@@ -64,17 +65,34 @@ export default function Forms() {
           {forms.map((f) => {
             const publicUrl = `${baseUrl}/form/${f.slug}`;
             return (
-              <GlassCard key={f.slug} hover className="flex flex-col gap-4">
-                <div>
-                  <div className="font-display text-xl tracking-wide text-white font-bold">{f.title}</div>
-                  <p className="text-sm text-white/75 mt-1 font-medium">{f.description}</p>
+              <Link
+                key={f.slug}
+                to={`/forms/${f.slug}`}
+                className="glass glass-hover p-6 flex flex-col gap-4 cursor-pointer group"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-display text-xl tracking-wide text-white font-bold">{f.title}</div>
+                    <p className="text-sm text-white/75 mt-1 font-medium">{f.description}</p>
+                  </div>
+                  <ArrowRight
+                    size={18}
+                    className="text-white/30 group-hover:text-primary group-hover:translate-x-1 transition shrink-0 mt-1"
+                  />
                 </div>
 
-                <div className="flex items-center gap-2 font-mono text-xs text-white/90 bg-black/40 border border-white/[0.06] rounded-lg px-3 py-2 overflow-hidden">
+                <div
+                  className="flex items-center gap-2 font-mono text-xs text-white/90 bg-black/40 border border-white/[0.06] rounded-lg px-3 py-2 overflow-hidden"
+                  onClick={(e) => e.preventDefault()}
+                >
                   <span className="truncate flex-1 font-semibold">{publicUrl}</span>
                   <button
                     className="text-primary hover:text-primary/80 shrink-0"
-                    onClick={() => void copyToClipboard(publicUrl)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void copyToClipboard(publicUrl);
+                    }}
                     title="Copy URL"
                   >
                     <Copy size={14} />
@@ -83,18 +101,22 @@ export default function Forms() {
                     href={publicUrl}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                     className="text-primary hover:text-primary/80 shrink-0"
-                    title="Open form"
+                    title="Open form in new tab"
                   >
                     <ExternalLink size={14} />
                   </a>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs text-white/65 border-t border-white/[0.06] pt-3 font-mono uppercase tracking-widest font-bold">
-                  <span>{f.fields.length} fields</span>
-                  <span>/ {f.slug}</span>
+                <div className="flex items-center justify-between text-xs text-white/65 border-t border-white/[0.06] pt-3 font-mono uppercase tracking-widest font-bold">
+                  <div className="flex items-center gap-4">
+                    <span>{f.fields.length} fields</span>
+                    <span>/ {f.slug}</span>
+                  </div>
+                  <span className="text-primary group-hover:text-primary/80">View submissions →</span>
                 </div>
-              </GlassCard>
+              </Link>
             );
           })}
         </div>
