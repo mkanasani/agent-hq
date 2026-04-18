@@ -1,4 +1,5 @@
 import type { Handler } from "@netlify/functions";
+import { connectLambda } from "@netlify/blobs";
 import { nanoid } from "nanoid";
 import { store, readJson, writeJson } from "./lib/blobs";
 
@@ -7,6 +8,7 @@ const WEBHOOK_EVENTS = "agent-hq-webhook-events";
 const ACTIVITY = "agent-hq-activity";
 
 export const handler: Handler = async (event) => {
+  connectLambda(event);
   const webhookId = (event.path.split("/").pop() ?? "").trim();
   if (!webhookId) return { statusCode: 400, body: "Missing webhook id" };
 

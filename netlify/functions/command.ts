@@ -1,4 +1,5 @@
 import type { Handler } from "@netlify/functions";
+import { connectLambda } from "@netlify/blobs";
 import { nanoid } from "nanoid";
 import { store, readJson, writeJson, listJson } from "./lib/blobs";
 import { getOrCreateApiKey, identifyApiKey, createAgentKey } from "./lib/auth";
@@ -44,6 +45,9 @@ async function logActivity(entry: {
 }
 
 export const handler: Handler = async (event) => {
+  // v1 Lambda-compat functions need this to wire up Blobs from the event headers
+  connectLambda(event);
+
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
