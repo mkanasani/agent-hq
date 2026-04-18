@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:where(*, *::before, *::after) {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Rajdhani", system-ui, sans-serif;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.96);
+  background: #0a0a0f;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: "Orbitron", sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.font-mono,
+code,
+pre {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ── Ambient background ─────────────────────────────── */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(1200px 800px at 15% 10%, rgba(0, 191, 255, 0.12), transparent 60%),
+    radial-gradient(1000px 700px at 85% 90%, rgba(168, 85, 247, 0.12), transparent 60%),
+    #0a0a0f;
+}
+
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+}
+
+/* ── Glass card ─────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.glass-hover {
+  transition: border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+}
+.glass-hover:hover {
+  border-color: rgba(0, 191, 255, 0.4);
+  box-shadow: 0 0 24px rgba(0, 191, 255, 0.18), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ── Stat number ─────────────────────────────── */
+.stat-num {
+  font-family: "Orbitron", sans-serif;
+  font-weight: 700;
+  font-size: 64px;
+  line-height: 1;
+  background: linear-gradient(135deg, #00bfff 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 32px rgba(0, 191, 255, 0.35);
+}
+
+/* ── Page header ─────────────────────────────── */
+.page-title {
+  position: relative;
+  display: inline-block;
+  font-family: "Orbitron", sans-serif;
+  font-weight: 700;
+  font-size: 3rem;
+  letter-spacing: 0.01em;
+  padding-bottom: 10px;
+}
+.page-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 72%;
+  background: linear-gradient(90deg, #00bfff, #a855f7 60%, transparent);
+  border-radius: 2px;
+}
+
+/* ── Sidebar nav pill ─────────────────────────────── */
+.nav-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.nav-pill:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+.nav-pill.active {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(0, 191, 255, 0.18), rgba(168, 85, 247, 0.18));
+  box-shadow: inset 0 0 0 1px rgba(0, 191, 255, 0.35), 0 8px 32px -10px rgba(0, 191, 255, 0.45);
+}
+
+/* ── Pulse dot ─────────────────────────────── */
+.pulse-dot {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  opacity: 0.5;
+  animation: pulse-ring 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.6); opacity: 0.6; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.dot-green { color: #00e676; background: #00e676; }
+.dot-amber { color: #f59e0b; background: #f59e0b; }
+.dot-red { color: #ff4d6d; background: #ff4d6d; }
+.dot-gray { color: #6b7280; background: #6b7280; }
+
+/* ── Floating agent sprite ─────────────────────────────── */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.float-y { animation: float-y 4s ease-in-out infinite; }
+
+/* ── Scrollbar ─────────────────────────────── */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgba(0, 191, 255, 0.35); }
