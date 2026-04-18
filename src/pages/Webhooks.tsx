@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Copy } from "lucide-react";
+import { Plus, Copy, Sparkles, Calendar, CreditCard, GitPullRequest, Mail } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import GlassCard from "@/components/GlassCard";
 import NewWebhookModal from "@/components/NewWebhookModal";
@@ -35,7 +35,7 @@ export default function Webhooks() {
     <>
       <PageHeader
         title="Webhooks"
-        subtitle="Catch-all inbound URLs. Give one to any service — Cal, Stripe, GitHub, Zapier — and let an agent react."
+        subtitle="Catch-all inbound URLs. Paste one into any external service, and every event flows into your activity log — where an agent can react in real time."
         right={
           <button
             onClick={() => setModalOpen(true)}
@@ -45,6 +45,50 @@ export default function Webhooks() {
           </button>
         }
       />
+
+      <GlassCard className="mb-6 bg-gradient-to-br from-accent/[0.08] to-purple/[0.08] border-accent/30">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-accent/25 border border-accent/50 flex items-center justify-center shrink-0 shadow-glow-accent animate-pulse">
+            <Sparkles size={22} className="text-accent" strokeWidth={2.3} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-xs tracking-[0.3em] uppercase text-accent font-bold mb-1">
+              Coming Tomorrow · AI SDR
+            </div>
+            <div className="font-display text-lg text-white font-bold mb-1">
+              Your webhook setup today becomes a lead-printing machine tomorrow.
+            </div>
+            <p className="text-sm text-white/80 font-medium">
+              Tomorrow we wire webhooks + forms + pages + agents into a full AI SDR system. Booking comes in
+              → agent preps the briefing. Contact form fills → agent researches, drafts outreach, schedules
+              the follow-up. Set the endpoints up now; tomorrow we make them print pipeline.
+            </p>
+          </div>
+        </div>
+      </GlassCard>
+
+      <div className="grid grid-cols-4 gap-3 mb-8">
+        <UseCase
+          icon={Calendar}
+          label="Cal.com bookings"
+          copy="Every booking auto-creates a pre-meeting briefing task."
+        />
+        <UseCase
+          icon={CreditCard}
+          label="Stripe payments"
+          copy="New paying customer → agent sends a personalized thank-you + onboarding."
+        />
+        <UseCase
+          icon={GitPullRequest}
+          label="GitHub issues"
+          copy="Issue opened → agent triages severity and drafts the first response."
+        />
+        <UseCase
+          icon={Mail}
+          label="Email reply tracking"
+          copy="Replies come in via webhook → agent updates the lead record automatically."
+        />
+      </div>
 
       {showEmpty ? (
         <GlassCard className="text-center py-16">
@@ -97,5 +141,25 @@ export default function Webhooks() {
         onCreated={(w) => setWebhooks((prev) => [w, ...prev])}
       />
     </>
+  );
+}
+
+function UseCase({
+  icon: Icon,
+  label,
+  copy,
+}: {
+  icon: typeof Calendar;
+  label: string;
+  copy: string;
+}) {
+  return (
+    <GlassCard hover className="p-4 flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Icon size={16} className="text-primary shrink-0" strokeWidth={2.3} />
+        <span className="font-display text-xs uppercase tracking-widest text-white font-bold">{label}</span>
+      </div>
+      <p className="text-xs text-white/70 font-medium leading-snug">{copy}</p>
+    </GlassCard>
   );
 }
