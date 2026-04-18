@@ -8,7 +8,7 @@ const SUBMISSIONS = "agent-hq-submissions";
 const ACTIVITY = "agent-hq-activity";
 
 export const handler: Handler = async (event) => {
-  connectLambda(event as Parameters<typeof connectLambda>[0]);
+  connectLambda(event as unknown as Parameters<typeof connectLambda>[0]);
   // URL shape: /api/form/:slug  →  function receives /:slug via splat
   const slug = (event.path.split("/").pop() ?? "").trim();
   if (!slug) return { statusCode: 400, body: "Missing form slug" };

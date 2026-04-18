@@ -8,7 +8,7 @@ const WEBHOOK_EVENTS = "agent-hq-webhook-events";
 const ACTIVITY = "agent-hq-activity";
 
 export const handler: Handler = async (event) => {
-  connectLambda(event as Parameters<typeof connectLambda>[0]);
+  connectLambda(event as unknown as Parameters<typeof connectLambda>[0]);
   const webhookId = (event.path.split("/").pop() ?? "").trim();
   if (!webhookId) return { statusCode: 400, body: "Missing webhook id" };
 

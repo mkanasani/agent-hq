@@ -46,7 +46,7 @@ async function logActivity(entry: {
 
 export const handler: Handler = async (event) => {
   // v1 Lambda-compat functions need this to wire up Blobs from the event headers
-  connectLambda(event as Parameters<typeof connectLambda>[0]);
+  connectLambda(event as unknown as Parameters<typeof connectLambda>[0]);
 
   if (event.httpMethod === "OPTIONS") {
     return {
