@@ -30,21 +30,24 @@ export const handler: Handler = async (event) => {
     payload = null;
   }
 
-  const destination = payload?.u;
-  if (!destination) {
+  if (!payload || !payload.u) {
     return { statusCode: 400, body: "Invalid tracking token" };
   }
 
+  // Narrow to non-null via a const binding so TS sees it everywhere below.
+  const p: ClickPayload = payload;
+  const destination = p.u;
+
   // Log the click — one blob per click, keyed for per-campaign listing.
-  if (payload.c && payload.e) {
+  if (p.c && p.e) {
     const clickId = nanoid(12);
     const clickedAt = new Date().toISOString();
     try {
-      await writeJson(store(OUTREACH_CLICKS), `${payload.c}/${clickedAt}-${clickId}`, {
+      await writeJson(store(OUTREACH_CLICKS), `${p.c}/${clickedAt}-${clickId}`, {
         id: clickId,
-        campaign_id: payload.c,
-        lead_id: payload.l ?? null,
-        email_id: payload.e,
+        campaign_id: p.c,
+        lead_id: p.l ?? null,
+        email_id: p.e,
         url: destination,
         user_agent: event.headers["user-agent"] ?? null,
         ip: event.headers["x-forwarded-for"] ?? null,
@@ -54,10 +57,10 @@ export const handler: Handler = async (event) => {
       // Bump per-email click counter and flip status to "clicked" if still
       // "sent" or "delivered" (don't regress past "replied").
       const es = store(OUTREACH_EMAILS);
-      const { blobs } = await es.list({ prefix: `${payload.c}/` });
+      const { blobs } = await es.list({ prefix: `${p.c}/` });
       for (const b of blobs) {
         const row = await readJson<Record<string, unknown>>(es, b.key);
-        if ((row as { id?: string } | null)?.id === payload.e) {
+        if ((row as { id?: string } | null)?.id === p.e) {
           const prevStatus = row?.status as string | undefined;
           const nextStatus = prevStatus === "replied" ? "replied" : "clicked";
           await writeJson(es, b.key, {
@@ -73,9 +76,9 @@ export const handler: Handler = async (event) => {
 
       // Bump campaign counter.
       const cs = store(OUTREACH_CAMPAIGNS);
-      const campaign = await readJson<Record<string, unknown>>(cs, payload.c);
+      const campaign = await readJson<Record<string, unknown>>(cs, p.c);
       if (campaign) {
-        await writeJson(cs, payload.c, {
+        await writeJson(cs, p.c, {
           ...campaign,
           emails_clicked: ((campaign.emails_clicked as number) ?? 0) + 1,
           updated_at: clickedAt,
@@ -88,8 +91,8 @@ export const handler: Handler = async (event) => {
         id: activityId,
         agent_id: null,
         category: "email",
-        summary: `Link clicked in campaign ${(campaign?.name as string) ?? payload.c}`,
-        details: { campaign_id: payload.c, email_id: payload.e, url: destination },
+        summary: `Link clicked in campaign ${(campaign?.name as string) ?? p.c}`,
+        details: { campaign_id: p.c, email_id: p.e, url: destination },
         created_at: clickedAt,
       });
     } catch (err) {
