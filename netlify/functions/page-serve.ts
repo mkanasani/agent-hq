@@ -51,7 +51,14 @@ export const handler: Handler = async (event) => {
 function htmlResponse(status: number, html: string) {
   return {
     statusCode: status,
-    headers: { "Content-Type": "text/html; charset=utf-8", "X-Frame-Options": "SAMEORIGIN" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Frame-Options": "SAMEORIGIN",
+      // Pages change every time an agent calls page.update — never cache.
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+    },
     body: html,
   };
 }

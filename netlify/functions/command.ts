@@ -454,6 +454,13 @@ export const handler: Handler = async (event) => {
         if (!existing) return fail(404, "page not found");
         const updated = { ...existing, ...patch, slug, updated_at: new Date().toISOString() };
         await writeJson(s, slug, updated);
+        const changedKeys = Object.keys(patch).filter((k) => k !== "slug");
+        await logActivity({
+          agent_id: identity?.kind === "agent" ? identity.agent_id : null,
+          category: "content",
+          summary: `Landing page "${existing.title ?? slug}" updated (${changedKeys.join(", ") || "no fields"})`,
+          details: { slug, changed: changedKeys },
+        });
         return ok(updated);
       }
       case "page.delete": {

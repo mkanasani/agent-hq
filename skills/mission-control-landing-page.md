@@ -209,6 +209,16 @@ curl -X POST $AGENT_HQ_URL/api/command \
 
 ## Iteration — when the user wants changes
 
+**CRITICAL:** if the user asks to change an existing page, you MUST call
+`page.update` with the same slug. Do NOT re-create the page with
+`page.create` — that works but wastes a step. Do NOT just tell the user
+you edited it without actually calling the API — verify the response comes
+back `{"ok": true}` before claiming success.
+
+Every successful `page.update` is logged to the activity feed so the human
+operator can verify you actually did the work. If they don't see an
+activity entry, you didn't do it.
+
 Treat the first page as a draft. The user will say things like:
 
 - *"Make the headline more aggressive."*

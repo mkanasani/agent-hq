@@ -88,8 +88,8 @@ const ACTIONS: ActionGroup[] = [
       { action: "page.get", desc: "Get one page's record", params: "{ slug }" },
       {
         action: "page.update",
-        desc: "Replace page content in place — same URL, updated markup. Use for iteration.",
-        params: "{ slug, html_body?, title?, accent? }",
+        desc: "REQUIRED for edits. Replaces page content in place at the same URL. Never re-create with page.create to 'update' — use this. Every update logs an activity entry so the human can verify.",
+        params: "{ slug, html_body?, title?, accent?, linked_form_slug? }",
       },
       { action: "page.delete", desc: "Unpublish a page", params: "{ slug }" },
     ],
@@ -331,7 +331,11 @@ Pages (landing pages):
                    .button.ghost, .stat, .eyebrow, .cta-row, footer.
                    Chain after form.create for one-shot lead capture pages.
   page.list
-  page.update      { slug, html_body?, title?, accent? }  Replace in place
+  page.update      { slug, html_body?, title?, accent?, linked_form_slug? }
+                   REQUIRED FOR EDITS. Replaces page content at the same
+                   slug/URL. Never re-create with page.create to "update".
+                   Every successful update writes an activity-log entry so
+                   the human can verify you actually did it.
   page.delete      { slug }
 
 ═══════════════════════════════════════════════════════════════
