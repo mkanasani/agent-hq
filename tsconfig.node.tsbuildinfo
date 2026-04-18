@@ -1,1 +1,0 @@
-{"root":["./vite.config.ts","./netlify/functions/command.ts","./netlify/functions/form-submit.ts","./netlify/functions/webhook-receive.ts","./netlify/functions/lib/auth.ts","./netlify/functions/lib/blobs.ts"],"version":"5.9.3"}
