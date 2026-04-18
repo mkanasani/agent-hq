@@ -7,12 +7,6 @@ import { call } from "@/lib/api";
 import { copyToClipboard } from "@/lib/utils";
 import type { Webhook } from "@/lib/types";
 
-const SEED: Webhook[] = [
-  { id: "wh_cal_123", name: "Cal.com Bookings", description: "Every booking triggers Atlas to prep a briefing", event_count: 42, created_at: "" },
-  { id: "wh_stripe_456", name: "Stripe Payments", description: "New paid invoices go into activity + thank-you email", event_count: 17, created_at: "" },
-  { id: "wh_github_789", name: "GitHub Issues", description: "New issues auto-triaged by Sage", event_count: 128, created_at: "" },
-];
-
 export default function Webhooks() {
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -27,13 +21,13 @@ export default function Webhooks() {
   async function refresh() {
     try {
       setWebhooks(await call<Webhook[]>("webhook.list"));
-      setLoaded(true);
     } catch {
+      // noop
+    } finally {
       setLoaded(true);
     }
   }
 
-  const display = webhooks.length > 0 ? webhooks : loaded ? [] : SEED;
   const showEmpty = loaded && webhooks.length === 0;
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -67,7 +61,7 @@ export default function Webhooks() {
         </GlassCard>
       ) : (
         <div className="flex flex-col gap-4">
-          {display.map((w) => {
+          {webhooks.map((w) => {
             const url = `${baseUrl}/api/webhook/${w.id}`;
             return (
               <GlassCard key={w.id} hover>

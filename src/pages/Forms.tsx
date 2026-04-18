@@ -7,31 +7,6 @@ import { call } from "@/lib/api";
 import { copyToClipboard } from "@/lib/utils";
 import type { FormConfig } from "@/lib/types";
 
-const SEED: FormConfig[] = [
-  {
-    slug: "lead-intake",
-    title: "New Lead Intake",
-    description: "Collect inbound leads and assign them to Nova for outreach.",
-    fields: [
-      { name: "name", label: "Full Name", type: "text", required: true },
-      { name: "email", label: "Work Email", type: "email", required: true },
-      { name: "company", label: "Company", type: "text", required: true },
-      { name: "message", label: "What brings you here?", type: "textarea", required: false },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    slug: "support-ticket",
-    title: "Support Request",
-    description: "Customer issues, routed to Atlas for triage.",
-    fields: [
-      { name: "email", label: "Your Email", type: "email", required: true },
-      { name: "issue", label: "Describe the issue", type: "textarea", required: true },
-    ],
-    created_at: new Date().toISOString(),
-  },
-];
-
 export default function Forms() {
   const [forms, setForms] = useState<FormConfig[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -44,15 +19,14 @@ export default function Forms() {
   async function refresh() {
     try {
       setForms(await call<FormConfig[]>("form.list"));
-      setLoaded(true);
     } catch {
+      // noop
+    } finally {
       setLoaded(true);
     }
   }
 
-  const display = forms.length > 0 ? forms : loaded ? [] : SEED;
   const showEmpty = loaded && forms.length === 0;
-  const finalList = showEmpty ? [] : display;
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   return (
@@ -85,9 +59,9 @@ export default function Forms() {
         </GlassCard>
       )}
 
-      {!showEmpty && (
+      {!showEmpty && forms.length > 0 && (
         <div className="grid grid-cols-2 gap-5">
-          {finalList.length === 0 && !loaded ? null : (finalList.length === 0 ? display : finalList).map((f) => {
+          {forms.map((f) => {
             const publicUrl = `${baseUrl}/form/${f.slug}`;
             return (
               <GlassCard key={f.slug} hover className="flex flex-col gap-4">
