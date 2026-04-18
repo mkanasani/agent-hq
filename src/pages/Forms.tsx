@@ -1,15 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Copy, ExternalLink, ArrowRight } from "lucide-react";
+import { Plus, Copy, ExternalLink, ArrowRight, LayoutTemplate } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import GlassCard from "@/components/GlassCard";
 import NewFormModal from "@/components/NewFormModal";
 import { call } from "@/lib/api";
 import { copyToClipboard } from "@/lib/utils";
-import type { FormConfig } from "@/lib/types";
+import type { FormConfig, Page } from "@/lib/types";
+
+function pagesLinkedToForm(formSlug: string, allPages: Page[]): Page[] {
+  const marker = new RegExp(
+    `\\{\\{form:${formSlug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\}\\}`,
+    "i",
+  );
+  return allPages.filter(
+    (p) => p.linked_form_slug === formSlug || marker.test(p.html_body || ""),
+  );
+}
 
 export default function Forms() {
   const [forms, setForms] = useState<FormConfig[]>([]);
+  const [pages, setPages] = useState<Page[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -18,23 +29,29 @@ export default function Forms() {
   }, []);
 
   async function refresh() {
-    try {
-      setForms(await call<FormConfig[]>("form.list"));
-    } catch {
-      // noop
-    } finally {
-      setLoaded(true);
-    }
+    const [formsRes, pagesRes] = await Promise.allSettled([
+      call<FormConfig[]>("form.list"),
+      call<Page[]>("page.list"),
+    ]);
+    if (formsRes.status === "fulfilled") setForms(formsRes.value);
+    if (pagesRes.status === "fulfilled") setPages(pagesRes.value);
+    setLoaded(true);
   }
 
   const showEmpty = loaded && forms.length === 0;
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
+  const linkedPagesByForm = useMemo(() => {
+    const map: Record<string, Page[]> = {};
+    for (const f of forms) map[f.slug] = pagesLinkedToForm(f.slug, pages);
+    return map;
+  }, [forms, pages]);
+
   return (
     <>
       <PageHeader
         title="Forms"
-        subtitle="Public URLs that agents watch. Every submission lands in the activity log and becomes work."
+        subtitle="Public URLs your agents watch. Link a form to a landing page and every submission flows back here — cancel the Webflow/Squarespace subscription, let your agents publish and own the loop."
         right={
           <button
             onClick={() => setModalOpen(true)}
@@ -64,6 +81,7 @@ export default function Forms() {
         <div className="grid grid-cols-2 gap-5">
           {forms.map((f) => {
             const publicUrl = `${baseUrl}/form/${f.slug}`;
+            const linkedPages = linkedPagesByForm[f.slug] ?? [];
             return (
               <Link
                 key={f.slug}
@@ -80,6 +98,29 @@ export default function Forms() {
                     className="text-white/30 group-hover:text-primary group-hover:translate-x-1 transition shrink-0 mt-1"
                   />
                 </div>
+
+                {linkedPages.length > 0 && (
+                  <div className="flex items-start gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-accent font-display font-bold shrink-0 mt-1">
+                      <LayoutTemplate size={11} strokeWidth={2.5} />
+                      Embedded on
+                    </div>
+                    {linkedPages.map((p) => (
+                      <a
+                        key={p.slug}
+                        href={`${baseUrl}/p/${p.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent/15 border border-accent/40 text-accent text-xs font-mono font-semibold hover:bg-accent/25 transition"
+                        title={p.title}
+                      >
+                        /p/{p.slug}
+                        <ExternalLink size={10} strokeWidth={2.5} />
+                      </a>
+                    ))}
+                  </div>
+                )}
 
                 <div
                   className="flex items-center gap-2 font-mono text-xs text-white/90 bg-black/40 border border-white/[0.06] rounded-lg px-3 py-2 overflow-hidden"
