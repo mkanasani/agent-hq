@@ -8,11 +8,12 @@ import {
 } from "@google/genai";
 import { call } from "./api";
 
-// Try newest stable live models first, fall back if unavailable.
+// Try newest Live models first, fall back if unavailable.
+// Verified via listModels for typical Gemini API keys in April 2026.
 const MODEL_CANDIDATES = [
-  "gemini-2.5-flash-preview-native-audio-dialog",
-  "gemini-2.0-flash-live-001",
-  "gemini-2.0-flash-exp",
+  "gemini-3.1-flash-live-preview",
+  "gemini-2.5-flash-native-audio-latest",
+  "gemini-2.5-flash-native-audio-preview-12-2025",
 ];
 
 export type VoiceEvent =
