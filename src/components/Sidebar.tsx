@@ -8,6 +8,7 @@ import {
   Webhook,
   Code2,
   Mic,
+  LayoutTemplate,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ const NAV = [
   { to: "/agents", label: "Agents", icon: Users },
   { to: "/voice", label: "Voice", icon: Mic },
   { to: "/forms", label: "Forms", icon: Inbox },
+  { to: "/pages", label: "Pages", icon: LayoutTemplate },
   { to: "/webhooks", label: "Webhooks", icon: Webhook },
   { to: "/integrations", label: "Integrations", icon: Code2 },
 ];

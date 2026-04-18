@@ -96,6 +96,17 @@ export type VoiceSessionRecord = {
   invitation_id: string | null;
 };
 
+export type Page = {
+  slug: string;
+  title: string;
+  html_body: string;
+  theme: string;
+  linked_form_slug: string | null;
+  accent: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type VoiceInvitation = {
   id: string;
   agent_name: string;

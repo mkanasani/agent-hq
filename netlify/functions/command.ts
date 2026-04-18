@@ -33,6 +33,7 @@ const WEBHOOK_EVENTS = "agent-hq-webhook-events";
 const VOICE_CONFIG = "agent-hq-voice-config";
 const VOICE_SESSIONS = "agent-hq-voice-sessions";
 const VOICE_INVITATIONS = "agent-hq-voice-invitations";
+const PAGES = "agent-hq-pages";
 
 // Write activity log row — fire and forget.
 async function logActivity(entry: {
@@ -407,6 +408,59 @@ export const handler: Handler = async (event) => {
         if (!record) return fail(404, "invitation not found");
         await writeJson(s, id, { ...record, status: "accepted", accepted_at: new Date().toISOString() });
         return ok(record);
+      }
+
+      // ── PAGES (agent-generated landing pages served at /p/:slug) ──────
+      case "page.create": {
+        const { slug, title, html_body, theme = "dark-futuristic", linked_form_slug, accent } =
+          params as Record<string, string>;
+        if (!slug || !title || !html_body) return fail(400, "slug, title, html_body required");
+        const normSlug = slug.toLowerCase().trim().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+        if (!normSlug) return fail(400, "slug resolved to empty after normalization");
+        const page = {
+          slug: normSlug,
+          title,
+          html_body,
+          theme,
+          linked_form_slug: linked_form_slug ?? null,
+          accent: accent ?? null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        await writeJson(store(PAGES), normSlug, page);
+        await logActivity({
+          agent_id: identity?.kind === "agent" ? identity.agent_id : null,
+          category: "content",
+          summary: `Landing page "${title}" published at /p/${normSlug}`,
+          details: { slug: normSlug, linked_form_slug: linked_form_slug ?? null },
+        });
+        return ok(page);
+      }
+      case "page.list": {
+        return ok(await listJson(store(PAGES)));
+      }
+      case "page.get": {
+        const { slug } = params as Record<string, string>;
+        if (!slug) return fail(400, "slug required");
+        const record = await readJson(store(PAGES), slug);
+        if (!record) return fail(404, "page not found");
+        return ok(record);
+      }
+      case "page.update": {
+        const { slug, ...patch } = params as Record<string, string>;
+        if (!slug) return fail(400, "slug required");
+        const s = store(PAGES);
+        const existing = await readJson<Record<string, unknown>>(s, slug);
+        if (!existing) return fail(404, "page not found");
+        const updated = { ...existing, ...patch, slug, updated_at: new Date().toISOString() };
+        await writeJson(s, slug, updated);
+        return ok(updated);
+      }
+      case "page.delete": {
+        const { slug } = params as Record<string, string>;
+        if (!slug) return fail(400, "slug required");
+        await store(PAGES).delete(slug);
+        return ok({ slug, deleted: true });
       }
 
       default:

@@ -76,6 +76,24 @@ const ACTIONS: ActionGroup[] = [
       { action: "voice.session.get", desc: "Get one transcript by id", params: "{ id }" },
     ],
   },
+  {
+    group: "Pages (landing pages)",
+    items: [
+      {
+        action: "page.create",
+        desc: "Publish a landing page at /p/<slug>. Pair with form.create to embed a form inline via {{form:<slug>}} marker. The theme wrapper handles typography, layout, and dark-futuristic glow — you just write the semantic HTML body.",
+        params: "{ slug, title, html_body, linked_form_slug?, accent? }",
+      },
+      { action: "page.list", desc: "List all published pages" },
+      { action: "page.get", desc: "Get one page's record", params: "{ slug }" },
+      {
+        action: "page.update",
+        desc: "Replace page content in place — same URL, updated markup. Use for iteration.",
+        params: "{ slug, html_body?, title?, accent? }",
+      },
+      { action: "page.delete", desc: "Unpublish a page", params: "{ slug }" },
+    ],
+  },
 ];
 
 function buildFullGuide(baseUrl: string, apiKey: string): string {
@@ -303,6 +321,18 @@ Voice:
   voice.invitation.list
   voice.session.list        Returns past conversation transcripts
   voice.session.get         { id }
+
+Pages (landing pages):
+  page.create      { slug, title, html_body, linked_form_slug?, accent? }
+                   Publishes a landing page at /p/<slug>. Theme wrapper
+                   supplies fonts, CSS, layout. You write the semantic HTML
+                   body. Use {{form:<slug>}} marker to embed a form inline.
+                   Class conventions: .hero, .features, .card, .button,
+                   .button.ghost, .stat, .eyebrow, .cta-row, footer.
+                   Chain after form.create for one-shot lead capture pages.
+  page.list
+  page.update      { slug, html_body?, title?, accent? }  Replace in place
+  page.delete      { slug }
 
 ═══════════════════════════════════════════════════════════════
 FIELD SCHEMA — form.create (READ THIS)

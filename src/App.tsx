@@ -10,6 +10,7 @@ import Webhooks from "@/pages/Webhooks";
 import Integrations from "@/pages/Integrations";
 import Voice from "@/pages/Voice";
 import VoiceInvitationBanner from "@/components/VoiceInvitationBanner";
+import Pages from "@/pages/Pages";
 import PublicForm from "@/pages/PublicForm";
 
 export default function App() {
@@ -40,6 +41,7 @@ function Shell() {
           <Route path="/voice" element={<Voice />} />
           <Route path="/forms" element={<Forms />} />
           <Route path="/forms/:slug" element={<FormSubmissions />} />
+          <Route path="/pages" element={<Pages />} />
           <Route path="/webhooks" element={<Webhooks />} />
           <Route path="/integrations" element={<Integrations />} />
           <Route path="*" element={<Navigate to="/" replace />} />
