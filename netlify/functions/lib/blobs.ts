@@ -3,7 +3,7 @@ import { getStore } from "@netlify/blobs";
 export type Store = ReturnType<typeof getStore>;
 
 export function store(name: string): Store {
-  return getStore({ name, consistency: "strong" });
+  return getStore(name);
 }
 
 export async function readJson<T>(s: Store, key: string): Promise<T | null> {
