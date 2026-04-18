@@ -1,19 +1,34 @@
 import { useEffect, useState } from "react";
-import { Mic, KeyRound, Settings } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Mic, KeyRound, Settings, Sparkles, PhoneCall } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import GlassCard from "@/components/GlassCard";
 import VoiceOnboarding from "@/components/VoiceOnboarding";
 import VoiceSessionUI from "@/components/VoiceSessionUI";
+import VoiceHistory from "@/components/VoiceHistory";
 import { call } from "@/lib/api";
+import type { VoiceInvitation } from "@/lib/types";
 
 type Phase = "loading" | "onboarding" | "idle" | "session";
+
+const SUGGESTED_PROMPTS = [
+  "Create a task to follow up with Acme Corp tomorrow as high priority.",
+  "Log that I just sent the proposal to the client — category email.",
+  "What tasks are in progress right now?",
+  "Show me all my active agents.",
+  "Remind me to review yesterday's meeting notes — make it a medium priority task.",
+  "Log a decision: I'm pausing the Q2 content push until after the launch.",
+];
 
 export default function Voice() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [invitation, setInvitation] = useState<VoiceInvitation | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     void checkConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function checkConfig() {
@@ -25,15 +40,33 @@ export default function Voice() {
     }
   }
 
-  async function startSession() {
+  async function startSession(invitationOverride?: VoiceInvitation | null) {
     try {
       const res = await call<{ gemini_key: string }>("voice.config.get");
       setApiKey(res.gemini_key);
+      if (invitationOverride) setInvitation(invitationOverride);
       setPhase("session");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to fetch Gemini key");
     }
   }
+
+  // Auto-start if arriving via an invitation link
+  useEffect(() => {
+    const invId = searchParams.get("invitation");
+    if (!invId || phase !== "idle") return;
+    void (async () => {
+      try {
+        const inv = await call<VoiceInvitation>("voice.invitation.get", { id: invId });
+        await startSession(inv);
+        searchParams.delete("invitation");
+        setSearchParams(searchParams, { replace: true });
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Invitation not found");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, searchParams]);
 
   async function resetConfig() {
     if (!confirm("Replace the stored Gemini key?")) return;
@@ -43,6 +76,11 @@ export default function Voice() {
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to clear");
     }
+  }
+
+  function handleSessionEnd() {
+    setInvitation(null);
+    setPhase("idle");
   }
 
   if (phase === "loading") {
@@ -66,10 +104,29 @@ export default function Voice() {
   }
 
   if (phase === "session" && apiKey) {
+    const invContext = invitation
+      ? `The agent "${invitation.agent_name}" initiated this conversation with the following context:\n\n${invitation.context || invitation.reason}`
+      : undefined;
+    const invPreamble = invitation
+      ? `[SYSTEM] You were paged by the agent ${invitation.agent_name}. Open the conversation now.`
+      : undefined;
     return (
       <>
-        <PageHeader title="Voice" subtitle="Live session. Speak naturally — your agent can act while you talk." />
-        <VoiceSessionUI apiKey={apiKey} onSessionEnd={() => setPhase("idle")} />
+        <PageHeader
+          title={invitation ? `${invitation.agent_name} is calling` : "Voice"}
+          subtitle={
+            invitation
+              ? `"${invitation.reason}"`
+              : "Live session. Speak naturally — your agent can act while you talk."
+          }
+        />
+        <VoiceSessionUI
+          apiKey={apiKey}
+          invitationContext={invContext}
+          invitationPreamble={invPreamble}
+          invitationId={invitation?.id ?? null}
+          onSessionEnd={handleSessionEnd}
+        />
       </>
     );
   }
@@ -93,11 +150,11 @@ export default function Voice() {
 
       <div className="grid grid-cols-3 gap-5 mb-8">
         <Tile icon={KeyRound} label="Gemini Key" value="Configured" accent="success" />
-        <Tile icon={Mic} label="Model" value="Gemini 2.0 Flash Live" accent="primary" />
-        <Tile icon={Mic} label="Mode" value="Browser (WebRTC)" accent="purple" />
+        <Tile icon={Mic} label="Model" value="Gemini 3.1 Flash Live" accent="primary" />
+        <Tile icon={PhoneCall} label="Mode" value="Browser (WebRTC)" accent="purple" />
       </div>
 
-      <GlassCard className="text-center py-16 relative overflow-hidden">
+      <GlassCard className="text-center py-16 relative overflow-hidden mb-8">
         <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-purple/10 blur-3xl" />
 
@@ -121,6 +178,31 @@ export default function Voice() {
           </p>
         </div>
       </GlassCard>
+
+      <GlassCard className="p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles size={16} className="text-accent" strokeWidth={2.3} />
+          <h3 className="font-display text-sm tracking-widest uppercase text-white font-bold">
+            Real things you can say
+          </h3>
+        </div>
+        <p className="text-sm text-white/75 font-medium mb-4">
+          Start a conversation and try one of these out loud. You'll see tasks appear, activity log
+          update, and your agent confirm — all live.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {SUGGESTED_PROMPTS.map((p) => (
+            <div
+              key={p}
+              className="glass p-3 text-sm text-white/90 font-medium border-white/[0.06] hover:border-primary/40 transition"
+            >
+              "{p}"
+            </div>
+          ))}
+        </div>
+      </GlassCard>
+
+      <VoiceHistory />
     </>
   );
 }

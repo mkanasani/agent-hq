@@ -31,6 +31,8 @@ const SUBMISSIONS = "agent-hq-submissions";
 const WEBHOOKS = "agent-hq-webhooks";
 const WEBHOOK_EVENTS = "agent-hq-webhook-events";
 const VOICE_CONFIG = "agent-hq-voice-config";
+const VOICE_SESSIONS = "agent-hq-voice-sessions";
+const VOICE_INVITATIONS = "agent-hq-voice-invitations";
 
 // Write activity log row — fire and forget.
 async function logActivity(entry: {
@@ -291,6 +293,120 @@ export const handler: Handler = async (event) => {
       case "voice.config.clear": {
         await store(VOICE_CONFIG).delete("config");
         return ok({ cleared: true });
+      }
+
+      // ── VOICE SESSIONS (past conversation transcripts) ────────────
+      case "voice.session.save": {
+        const { started_at, ended_at, transcripts, tools, invitation_id } = params as Record<string, unknown>;
+        if (!started_at || !ended_at || !Array.isArray(transcripts)) {
+          return fail(400, "started_at, ended_at, transcripts required");
+        }
+        const id = nanoid(12);
+        const session = {
+          id,
+          started_at,
+          ended_at,
+          transcripts,
+          tools: Array.isArray(tools) ? tools : [],
+          invitation_id: invitation_id ?? null,
+          duration_seconds: Math.round(
+            (new Date(ended_at as string).getTime() - new Date(started_at as string).getTime()) / 1000,
+          ),
+        };
+        await writeJson(store(VOICE_SESSIONS), `${started_at}-${id}`, session);
+        const firstUser = (transcripts as Array<{ role: string; text: string }>).find(
+          (t) => t.role === "user",
+        );
+        await logActivity({
+          agent_id: null,
+          category: "system",
+          summary: `Voice session (${session.duration_seconds}s): ${firstUser?.text?.slice(0, 80) ?? "no user input"}`,
+          details: { session_id: id },
+        });
+        return ok(session);
+      }
+      case "voice.session.list": {
+        const { limit = 50 } = params as Record<string, number>;
+        const all = await listJson<{ started_at: string }>(store(VOICE_SESSIONS));
+        all.sort((a, b) => (a.started_at < b.started_at ? 1 : -1));
+        return ok(all.slice(0, limit));
+      }
+      case "voice.session.get": {
+        const { id } = params as Record<string, string>;
+        if (!id) return fail(400, "id required");
+        const all = await listJson<{ id: string }>(store(VOICE_SESSIONS));
+        const found = all.find((s) => s.id === id);
+        if (!found) return fail(404, "session not found");
+        return ok(found);
+      }
+      case "voice.session.delete": {
+        const { id } = params as Record<string, string>;
+        if (!id) return fail(400, "id required");
+        const s = store(VOICE_SESSIONS);
+        const { blobs } = await s.list();
+        for (const b of blobs) {
+          const record = await readJson<{ id: string }>(s, b.key);
+          if (record?.id === id) {
+            await s.delete(b.key);
+            return ok({ id, deleted: true });
+          }
+        }
+        return fail(404, "session not found");
+      }
+
+      // ── VOICE INVITATIONS (agent → user "ring" requests) ────────────
+      case "voice.invitation.create": {
+        const { agent_name, reason, context } = params as Record<string, string>;
+        if (!reason) return fail(400, "reason required");
+        const id = nanoid(12);
+        const invitation = {
+          id,
+          agent_name: agent_name ?? (identity?.kind === "agent" ? identity.sign_in_name : "Unknown Agent"),
+          agent_id: identity?.kind === "agent" ? identity.agent_id : null,
+          reason,
+          context: context ?? "",
+          status: "pending",
+          created_at: new Date().toISOString(),
+        };
+        await writeJson(store(VOICE_INVITATIONS), id, invitation);
+        await logActivity({
+          agent_id: invitation.agent_id,
+          category: "decision",
+          summary: `${invitation.agent_name} wants to talk: ${reason.slice(0, 80)}`,
+          details: { invitation_id: id },
+        });
+        return ok(invitation);
+      }
+      case "voice.invitation.list": {
+        const all = await listJson<{ created_at: string; status: string }>(store(VOICE_INVITATIONS));
+        const pending = all.filter((i) => i.status === "pending");
+        pending.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+        return ok(pending);
+      }
+      case "voice.invitation.get": {
+        const { id } = params as Record<string, string>;
+        if (!id) return fail(400, "id required");
+        const record = await readJson(store(VOICE_INVITATIONS), id);
+        if (!record) return fail(404, "invitation not found");
+        return ok(record);
+      }
+      case "voice.invitation.dismiss": {
+        const { id } = params as Record<string, string>;
+        if (!id) return fail(400, "id required");
+        const s = store(VOICE_INVITATIONS);
+        const record = await readJson<Record<string, unknown>>(s, id);
+        if (!record) return fail(404, "invitation not found");
+        await writeJson(s, id, { ...record, status: "dismissed" });
+        return ok({ id, status: "dismissed" });
+      }
+      case "voice.invitation.accept": {
+        const { id } = params as Record<string, string>;
+        if (!id) return fail(400, "id required");
+        const s = store(VOICE_INVITATIONS);
+        const record = await readJson<Record<string, unknown>>(s, id);
+        if (!record) return fail(404, "invitation not found");
+        await writeJson(s, id, { ...record, status: "accepted", accepted_at: new Date().toISOString() });
+        return ok(record);
       }
 
       default:

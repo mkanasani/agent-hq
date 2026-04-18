@@ -63,6 +63,19 @@ const ACTIONS: ActionGroup[] = [
       { action: "webhook.events", desc: "List events received by a webhook", params: "{ id }" },
     ],
   },
+  {
+    group: "Voice",
+    items: [
+      {
+        action: "voice.invitation.create",
+        desc: "Ring the dashboard — trigger an 'incoming call' banner so the human can answer and have a live voice conversation with full context of why you're calling. This is how you page the user for urgent decisions or briefings.",
+        params: "{ agent_name?, reason, context? }",
+      },
+      { action: "voice.invitation.list", desc: "List pending voice invitations" },
+      { action: "voice.session.list", desc: "Read past voice conversation transcripts", params: "{ limit? }" },
+      { action: "voice.session.get", desc: "Get one transcript by id", params: "{ id }" },
+    ],
+  },
 ];
 
 function buildFullGuide(baseUrl: string, apiKey: string): string {
@@ -93,6 +106,32 @@ Body:
 
 Every response is \`{"ok": true, "data": ...}\` on success or
 \`{"ok": false, "error": "..."}\` on failure.
+
+## Voice invitations — how to page the human
+
+You can literally ring the user's dashboard. Call \`voice.invitation.create\` with:
+
+- \`agent_name\` — the name to show in the banner (auto-filled from your sign-in name if you use an agent key)
+- \`reason\` — one-line pitch shown in the banner (what you want to talk about)
+- \`context\` — the full briefing; becomes part of the voice agent's system prompt so it opens the conversation naturally with the human
+
+When the human clicks **Answer**, a voice session starts with your context baked in. The voice agent speaks first with a natural greeting, the human responds, and every tool call during the conversation is attributed and logged.
+
+**Example:**
+
+\`\`\`bash
+curl -X POST $AGENT_HQ_URL/api/command \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: $AGENT_HQ_KEY" \\
+  -d '{
+    "action":"voice.invitation.create",
+    "params":{
+      "agent_name":"Nova",
+      "reason":"3 hot leads need your approval before I send",
+      "context":"I researched 8 prospects matching the ICP. Top 3: Acme Corp (enterprise, $50K ARR potential), Linear (mid-market, fits our case study), Stripe (strategic). Drafts are ready. Need you to approve tone + any edits before I send tonight."
+    }
+  }'
+\`\`\`
 
 ## Field schemas — read before you call these actions
 
@@ -252,6 +291,18 @@ Webhooks:
   webhook.create     { name, description? }
   webhook.list
   webhook.events     { id }
+
+Voice:
+  voice.invitation.create   { agent_name?, reason, context? }
+                            Triggers an "incoming call" banner in the
+                            user's dashboard. When they answer, a live
+                            voice conversation starts with your context
+                            pre-loaded. Use this when you need a decision,
+                            want to brief the human, or have something
+                            that can't wait in a task queue.
+  voice.invitation.list
+  voice.session.list        Returns past conversation transcripts
+  voice.session.get         { id }
 
 ═══════════════════════════════════════════════════════════════
 FIELD SCHEMA — form.create (READ THIS)

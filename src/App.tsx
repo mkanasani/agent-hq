@@ -9,6 +9,7 @@ import FormSubmissions from "@/pages/FormSubmissions";
 import Webhooks from "@/pages/Webhooks";
 import Integrations from "@/pages/Integrations";
 import Voice from "@/pages/Voice";
+import VoiceInvitationBanner from "@/components/VoiceInvitationBanner";
 import PublicForm from "@/pages/PublicForm";
 
 export default function App() {
@@ -29,6 +30,7 @@ function Shell() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
+      <VoiceInvitationBanner />
       <main className="flex-1 px-10 py-8 max-w-[1600px] mx-auto w-full">
         <Routes>
           <Route path="/" element={<Office />} />

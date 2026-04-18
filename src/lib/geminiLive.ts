@@ -68,7 +68,7 @@ const TOOLS: FunctionDeclaration[] = [
   },
 ];
 
-const SYSTEM_INSTRUCTION = `You are the voice of AgentHQ — a mission control dashboard for AI agents.
+const BASE_SYSTEM_INSTRUCTION = `You are the voice of AgentHQ — a mission control dashboard for AI agents.
 You're talking directly to the human operator through their microphone.
 
 Your personality: warm, concise, confident. One or two sentences per response.
@@ -97,8 +97,16 @@ async function runTool(name: string, params: Record<string, unknown>): Promise<u
   }
 }
 
+export type VoiceSessionOptions = {
+  apiKey: string;
+  invitationContext?: string; // Extra context to seed the session with (agent's briefing)
+  invitationPreamble?: string; // e.g. "The agent Nova is asking to speak with you about..."
+};
+
 export class VoiceSession {
   private apiKey: string;
+  private invitationContext: string | null;
+  private invitationPreamble: string | null;
   private listeners: Listener[] = [];
   private session: Session | null = null;
   private audioCtx: AudioContext | null = null;
@@ -112,8 +120,16 @@ export class VoiceSession {
   private userTranscriptBuffer = "";
   private agentTranscriptBuffer = "";
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
+  constructor(opts: VoiceSessionOptions | string) {
+    if (typeof opts === "string") {
+      this.apiKey = opts;
+      this.invitationContext = null;
+      this.invitationPreamble = null;
+    } else {
+      this.apiKey = opts.apiKey;
+      this.invitationContext = opts.invitationContext ?? null;
+      this.invitationPreamble = opts.invitationPreamble ?? null;
+    }
   }
 
   on(listener: Listener) {
@@ -135,6 +151,10 @@ export class VoiceSession {
       let connected = false;
       let lastModelError = "";
       let opened = false;
+      const systemText = this.invitationContext
+        ? `${BASE_SYSTEM_INSTRUCTION}\n\n---\nYOU WERE INVITED TO THIS CONVERSATION.\nThe agent context you are representing:\n${this.invitationContext}\n\nOpen the conversation with a natural greeting that sets up why you're here, based on the context above. Be brief. One or two sentences.`
+        : BASE_SYSTEM_INSTRUCTION;
+
       for (const model of MODEL_CANDIDATES) {
         console.log("[voice] trying model:", model);
         try {
@@ -143,7 +163,7 @@ export class VoiceSession {
             model,
             config: {
               responseModalities: [Modality.AUDIO],
-              systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+              systemInstruction: { parts: [{ text: systemText }] },
               tools: [{ functionDeclarations: TOOLS }],
               inputAudioTranscription: {},
               outputAudioTranscription: {},
@@ -229,6 +249,14 @@ export class VoiceSession {
       // 3) Playback context (Gemini returns 24kHz PCM)
       this.playbackCtx = new AudioContext({ sampleRate: 24000 });
       this.nextPlaybackTime = this.playbackCtx.currentTime;
+
+      // 4) If invited, nudge the agent to speak first
+      if (this.invitationPreamble && this.session) {
+        this.session.sendClientContent({
+          turns: [{ role: "user", parts: [{ text: this.invitationPreamble }] }],
+          turnComplete: true,
+        });
+      }
     } catch (err) {
       this.emit({ type: "error", message: err instanceof Error ? err.message : String(err) });
       await this.stop();

@@ -76,3 +76,33 @@ export type WebhookEvent = {
   body: unknown;
   received_at: string;
 };
+
+export type VoiceSessionTranscript = { role: "user" | "agent"; text: string; final: boolean };
+
+export type VoiceSessionToolCall = {
+  name: string;
+  params: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
+};
+
+export type VoiceSessionRecord = {
+  id: string;
+  started_at: string;
+  ended_at: string;
+  duration_seconds: number;
+  transcripts: VoiceSessionTranscript[];
+  tools: VoiceSessionToolCall[];
+  invitation_id: string | null;
+};
+
+export type VoiceInvitation = {
+  id: string;
+  agent_name: string;
+  agent_id: string | null;
+  reason: string;
+  context: string;
+  status: "pending" | "accepted" | "dismissed";
+  created_at: string;
+  accepted_at?: string;
+};

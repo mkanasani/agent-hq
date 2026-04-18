@@ -2,12 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Mic, PhoneOff, Zap, User } from "lucide-react";
 import GlassCard from "./GlassCard";
 import { VoiceSession, type VoiceEvent } from "@/lib/geminiLive";
+import { call } from "@/lib/api";
 
 type Transcript = { role: "user" | "agent"; text: string; final: boolean; id: number };
 type ToolEvent = { name: string; params: Record<string, unknown>; result?: unknown; error?: string; id: number };
 
 type Props = {
   apiKey: string;
+  invitationContext?: string;
+  invitationPreamble?: string;
+  invitationId?: string | null;
   onSessionEnd: () => void;
 };
 
@@ -27,17 +31,32 @@ const STATUS_COLOR: Record<string, string> = {
   idle: "text-white/40 bg-white/5",
 };
 
-export default function VoiceSessionUI({ apiKey, onSessionEnd }: Props) {
+export default function VoiceSessionUI({
+  apiKey,
+  invitationContext,
+  invitationPreamble,
+  invitationId,
+  onSessionEnd,
+}: Props) {
   const [status, setStatus] = useState<keyof typeof STATUS_LABEL>("idle");
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [tools, setTools] = useState<ToolEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<VoiceSession | null>(null);
   const idRef = useRef(0);
+  const startedAtRef = useRef<string>(new Date().toISOString());
+  const transcriptsRef = useRef<Transcript[]>([]);
+  const toolsRef = useRef<ToolEvent[]>([]);
+  const savedRef = useRef(false);
 
   useEffect(() => {
-    const s = new VoiceSession(apiKey);
+    const s = new VoiceSession({
+      apiKey,
+      invitationContext,
+      invitationPreamble,
+    });
     sessionRef.current = s;
+    startedAtRef.current = new Date().toISOString();
 
     const off = s.on((e: VoiceEvent) => {
       if (e.type === "status") setStatus(e.value);
@@ -45,12 +64,15 @@ export default function VoiceSessionUI({ apiKey, onSessionEnd }: Props) {
       if (e.type === "transcript") {
         setTranscripts((prev) => {
           const last = prev[prev.length - 1];
+          let next;
           if (last && last.role === e.role && !last.final) {
-            const updated = [...prev];
-            updated[updated.length - 1] = { ...last, text: e.text, final: e.final };
-            return updated;
+            next = [...prev];
+            next[next.length - 1] = { ...last, text: e.text, final: e.final };
+          } else {
+            next = [...prev, { role: e.role, text: e.text, final: e.final, id: idRef.current++ }];
           }
-          return [...prev, { role: e.role, text: e.text, final: e.final, id: idRef.current++ }];
+          transcriptsRef.current = next;
+          return next;
         });
       }
       if (e.type === "tool") {
@@ -58,15 +80,16 @@ export default function VoiceSessionUI({ apiKey, onSessionEnd }: Props) {
           const existing = prev.find(
             (t) => t.name === e.name && JSON.stringify(t.params) === JSON.stringify(e.params),
           );
+          let next = prev;
           if (existing && (e.result !== undefined || e.error !== undefined)) {
-            return prev.map((t) =>
+            next = prev.map((t) =>
               t === existing ? { ...t, result: e.result, error: e.error } : t,
             );
+          } else if (!existing) {
+            next = [...prev, { ...e, id: idRef.current++ }];
           }
-          if (!existing) {
-            return [...prev, { ...e, id: idRef.current++ }];
-          }
-          return prev;
+          toolsRef.current = next;
+          return next;
         });
       }
     });
@@ -75,14 +98,41 @@ export default function VoiceSessionUI({ apiKey, onSessionEnd }: Props) {
 
     return () => {
       off();
-      void s.stop();
+      void s.stop().then(() => saveTranscript());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function endCall() {
     await sessionRef.current?.stop();
+    await saveTranscript();
     onSessionEnd();
+  }
+
+  async function saveTranscript() {
+    if (savedRef.current) return;
+    const finalTranscripts = transcriptsRef.current.filter((t) => t.text.trim().length > 0);
+    if (finalTranscripts.length === 0) return;
+    savedRef.current = true;
+    try {
+      await call("voice.session.save", {
+        started_at: startedAtRef.current,
+        ended_at: new Date().toISOString(),
+        transcripts: finalTranscripts.map((t) => ({ role: t.role, text: t.text, final: t.final })),
+        tools: toolsRef.current.map((t) => ({
+          name: t.name,
+          params: t.params,
+          result: t.result,
+          error: t.error,
+        })),
+        invitation_id: invitationId ?? null,
+      });
+      if (invitationId) {
+        await call("voice.invitation.accept", { id: invitationId }).catch(() => undefined);
+      }
+    } catch (err) {
+      console.error("[voice] failed to save transcript:", err);
+    }
   }
 
   return (
