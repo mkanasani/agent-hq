@@ -46,7 +46,11 @@ const ACTIONS: ActionGroup[] = [
   {
     group: "Forms",
     items: [
-      { action: "form.create", desc: "Create a public form at /form/:slug", params: "{ slug, title, description?, fields }" },
+      {
+        action: "form.create",
+        desc: "Create a public form at /form/:slug. Each field object MUST include { name, label, type, required }. Types: text, email, textarea, tel, url, number, date.",
+        params: "{ slug, title, description?, fields: [{ name, label, type, required }] }",
+      },
       { action: "form.list", desc: "List all forms" },
       { action: "form.submissions", desc: "List submissions for a form", params: "{ slug }" },
     ],
@@ -89,6 +93,36 @@ Body:
 
 Every response is \`{"ok": true, "data": ...}\` on success or
 \`{"ok": false, "error": "..."}\` on failure.
+
+## Field schemas — read before you call these actions
+
+### \`form.create\` field objects
+
+Each entry in \`fields\` MUST include all four keys:
+
+\`\`\`json
+{
+  "name": "full_name",
+  "label": "Full Name",
+  "type": "text",
+  "required": true
+}
+\`\`\`
+
+- \`name\` — machine slug used as the submission key. Lowercase, underscores only.
+- \`label\` — human-readable label shown above the input.
+- \`type\` — one of: \`text\`, \`email\`, \`textarea\`, \`tel\`, \`url\`, \`number\`, \`date\`. Anything else is coerced to \`text\`.
+- \`required\` — boolean.
+
+If you omit \`name\`, the server will auto-derive it from \`label\`, but you should set it explicitly so your form.submissions downstream know which key to read.
+
+### \`activity.log\` categories
+
+Valid values for \`category\`: \`task\`, \`research\`, \`email\`, \`content\`, \`decision\`, \`error\`, \`system\`. Anything else is accepted but won't get a coloured pill on the dashboard.
+
+### \`task.move\` statuses
+
+Valid values for \`status\`: \`todo\`, \`doing\`, \`needs_input\`, \`canceled\`, \`done\`.
 
 ## Quick start
 
@@ -193,19 +227,24 @@ Agents:
   agent.register     { name, role, emoji?, color? }
   agent.list
   agent.heartbeat    { agent_id }
+  agent.delete       { id }
 
 Tasks:
   task.create        { title, description?, assignee_id?, priority? }
   task.list
-  task.move          { id, status }
+  task.move          { id, status }   status ∈ todo|doing|needs_input|canceled|done
   task.delete        { id }
 
 Activity:
   activity.log       { agent_id?, category, summary, details? }
+                     category ∈ task|research|email|content|decision|error|system
   activity.list      { limit? }
 
 Forms:
   form.create        { slug, title, description?, fields }
+                     fields: [{ name, label, type, required }]
+                     type ∈ text|email|textarea|tel|url|number|date
+                     name MUST be a lowercase machine slug (e.g. full_name)
   form.list
   form.submissions   { slug }
 
@@ -213,6 +252,21 @@ Webhooks:
   webhook.create     { name, description? }
   webhook.list
   webhook.events     { id }
+
+═══════════════════════════════════════════════════════════════
+FIELD SCHEMA — form.create (READ THIS)
+═══════════════════════════════════════════════════════════════
+
+Every field object needs all four keys:
+
+{ "name": "full_name", "label": "Full Name", "type": "text", "required": true }
+
+- name: lowercase slug, underscores only. This is the key you'll see in
+  form.submissions results — NEVER omit it or your downstream queries break.
+- label: the human-readable text rendered above the input.
+- type: text | email | textarea | tel | url | number | date
+        Unknown types get coerced to "text" — don't rely on this.
+- required: boolean
 
 ═══════════════════════════════════════════════════════════════
 RESPONSE SHAPE
