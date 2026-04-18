@@ -7,10 +7,10 @@ export function store(name: string): Store {
 }
 
 export async function readJson<T>(s: Store, key: string): Promise<T | null> {
-  const raw = await s.get(key, { type: "text" });
+  const raw = await s.get(key);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as T;
+    return JSON.parse(raw as string) as T;
   } catch {
     return null;
   }
