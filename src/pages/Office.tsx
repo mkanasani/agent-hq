@@ -38,6 +38,11 @@ export default function Office() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  // loaded stays false until the first API response comes back.
+  // Seed data is only shown when loaded=true AND everything is genuinely empty
+  // AND the user hasn't registered a real agent yet. This prevents the
+  // "flash of seed data" that used to happen on every Office page load.
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     void refresh();
@@ -46,23 +51,23 @@ export default function Office() {
   }, []);
 
   async function refresh() {
-    try {
-      const [a, l, t] = await Promise.all([
-        call<Agent[]>("agent.list").catch(() => [] as Agent[]),
-        call<Activity[]>("activity.list", { limit: 20 }).catch(() => [] as Activity[]),
-        call<Task[]>("task.list").catch(() => [] as Task[]),
-      ]);
-      setAgents(a);
-      setActivity(l);
-      setTasks(t);
-    } catch {
-      // noop — API key not set yet; seed data remains visible
-    }
+    const [a, l, t] = await Promise.all([
+      call<Agent[]>("agent.list").catch(() => [] as Agent[]),
+      call<Activity[]>("activity.list", { limit: 20 }).catch(() => [] as Activity[]),
+      call<Task[]>("task.list").catch(() => [] as Task[]),
+    ]);
+    setAgents(a);
+    setActivity(l);
+    setTasks(t);
+    setLoaded(true);
   }
 
   const seedSuppressed = hasRegisteredRealAgent();
-  const displayAgents = agents.length > 0 ? agents : seedSuppressed ? [] : SEED_AGENTS;
-  const displayActivity = activity.length > 0 ? activity : seedSuppressed ? [] : SEED_ACTIVITY;
+  // Only show seed when: first load complete + no real data + user has never registered an agent
+  const shouldShowAgentSeed = loaded && agents.length === 0 && !seedSuppressed;
+  const shouldShowActivitySeed = loaded && activity.length === 0 && !seedSuppressed;
+  const displayAgents = agents.length > 0 ? agents : shouldShowAgentSeed ? SEED_AGENTS : [];
+  const displayActivity = activity.length > 0 ? activity : shouldShowActivitySeed ? SEED_ACTIVITY : [];
   const taskInProgress = tasks.filter((t) => t.status === "doing").length;
 
   const stats = useMemo(
