@@ -8,7 +8,12 @@ import {
 } from "@google/genai";
 import { call } from "./api";
 
-const MODEL = "gemini-2.0-flash-exp";
+// Try newest stable live models first, fall back if unavailable.
+const MODEL_CANDIDATES = [
+  "gemini-2.5-flash-preview-native-audio-dialog",
+  "gemini-2.0-flash-live-001",
+  "gemini-2.0-flash-exp",
+];
 
 export type VoiceEvent =
   | { type: "status"; value: "connecting" | "listening" | "speaking" | "thinking" | "idle" }
@@ -123,35 +128,89 @@ export class VoiceSession {
   async start() {
     this.emit({ type: "status", value: "connecting" });
     try {
-      // 1) Open Gemini Live session
+      // 1) Open Gemini Live session — try each model until one works
       const ai = new GoogleGenAI({ apiKey: this.apiKey });
-      this.session = await ai.live.connect({
-        model: MODEL,
-        config: {
-          responseModalities: [Modality.AUDIO],
-          systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-          tools: [{ functionDeclarations: TOOLS }],
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-        },
-        callbacks: {
-          onopen: () => {
-            this.emit({ type: "status", value: "listening" });
-          },
-          onmessage: (msg: LiveServerMessage) => void this.onMessage(msg),
-          onerror: (err) => {
-            this.emit({ type: "error", message: String((err as { message?: string })?.message ?? err) });
-          },
-          onclose: () => {
-            this.emit({ type: "status", value: "idle" });
-          },
-        },
-      });
+      let connected = false;
+      let lastModelError = "";
+      let opened = false;
+      for (const model of MODEL_CANDIDATES) {
+        console.log("[voice] trying model:", model);
+        try {
+          opened = false;
+          this.session = await ai.live.connect({
+            model,
+            config: {
+              responseModalities: [Modality.AUDIO],
+              systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+              tools: [{ functionDeclarations: TOOLS }],
+              inputAudioTranscription: {},
+              outputAudioTranscription: {},
+            },
+            callbacks: {
+              onopen: () => {
+                opened = true;
+                console.log("[voice] session open:", model);
+                this.emit({ type: "status", value: "listening" });
+              },
+              onmessage: (msg: LiveServerMessage) => void this.onMessage(msg),
+              onerror: (err) => {
+                const message = String((err as { message?: string })?.message ?? err);
+                console.error("[voice] session error:", err);
+                this.emit({ type: "error", message: `Gemini error: ${message}` });
+              },
+              onclose: (ev) => {
+                const code = (ev as { code?: number })?.code ?? "?";
+                const reason = (ev as { reason?: string })?.reason ?? "(no reason)";
+                console.warn("[voice] session close:", code, reason);
+                if (!opened) {
+                  this.emit({
+                    type: "error",
+                    message: `Connection closed before opening. Code ${code}. ${reason}`,
+                  });
+                }
+                this.emit({ type: "status", value: "idle" });
+              },
+            },
+          });
+          // Wait briefly for onopen — if it fires, this model works.
+          await new Promise((r) => setTimeout(r, 1500));
+          if (opened) {
+            connected = true;
+            break;
+          }
+          try {
+            this.session?.close();
+          } catch {
+            // noop
+          }
+          lastModelError = `Model ${model} closed before opening`;
+        } catch (e) {
+          lastModelError = e instanceof Error ? e.message : String(e);
+          console.error(`[voice] model ${model} failed:`, lastModelError);
+        }
+      }
+      if (!connected) {
+        this.emit({
+          type: "error",
+          message: `All Gemini Live models failed. Last error: ${lastModelError}. Check that your API key has Live API access and billing enabled.`,
+        });
+        await this.stop();
+        return;
+      }
 
       // 2) Mic → 16kHz PCM → session
-      this.inputStream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-      });
+      try {
+        this.inputStream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+        });
+      } catch (err) {
+        this.emit({
+          type: "error",
+          message: `Microphone access denied or unavailable: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        await this.stop();
+        return;
+      }
       this.audioCtx = new AudioContext();
       await this.audioCtx.audioWorklet.addModule("/audio-worklet.js");
       this.sourceNode = this.audioCtx.createMediaStreamSource(this.inputStream);
