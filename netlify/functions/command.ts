@@ -162,6 +162,28 @@ async function getOrCreateCampaignInbox(key: string, campaignName: string): Prom
   return (await createR.json()) as AgentMailInbox;
 }
 
+/**
+ * AgentMail strips custom per-message `From` headers for anti-spoofing,
+ * so the only reliable way to control what recipients see as the sender
+ * name is the inbox-level `display_name`. Call this right before sending
+ * so the name reflects whatever the campaign's current default is.
+ */
+async function ensureInboxDisplayName(key: string, inboxId: string, desired: string, current?: string): Promise<string> {
+  const target = desired.replace(/["\r\n]/g, "").trim();
+  if (!target) return current ?? "";
+  if (current && current === target) return current;
+  const r = await agentmailFetch(key, `/inboxes/${encodeURIComponent(inboxId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ display_name: target }),
+  });
+  if (!r.ok) {
+    // Non-fatal — we'd rather send with the old name than fail the whole send.
+    console.warn(`[agentmail] display_name patch failed (${r.status})`);
+    return current ?? "";
+  }
+  return target;
+}
+
 // Rewrite every <a href="..."> in the HTML body to route through the
 // AgentHQ click tracker. The tracker function lives at /t/<token> and
 // 302s to the original URL after logging the click.
@@ -1779,9 +1801,14 @@ export const handler: Handler = async (event) => {
         const inbox = await getOrCreateCampaignInbox(agentmailKey, campaign.name as string);
 
         // Sender display name — per-email overrides campaign-level.
-        // Quotes are stripped to prevent header injection / malformed headers.
-        const sanitizeDisplayName = (name: string) => name.replace(/["\r\n]/g, "").trim();
-        const campaignSenderName = campaign.default_sender_name as string | undefined;
+        const campaignSenderName = (campaign.default_sender_name as string | undefined) ?? "";
+        // Patch the inbox's display_name if it doesn't match the campaign's
+        // sender. AgentMail strips custom per-message From headers, so the
+        // inbox display_name is the only knob that controls what recipients
+        // see. Non-fatal on failure — we'd rather send than block.
+        if (campaignSenderName) {
+          await ensureInboxDisplayName(agentmailKey, inbox.inbox_id, campaignSenderName, inbox.display_name);
+        }
 
         const es = store(OUTREACH_EMAILS);
         const allEmails = await listJson<{ id: string; campaign_id: string; lead_id: string; to_email: string; subject: string; body_text: string; body_html: string; status: string; sender_name?: string | null; sequence_position?: number }>(
@@ -1812,19 +1839,12 @@ export const handler: Handler = async (event) => {
         for (const em of toSend) {
           try {
             const trackedHtml = rewriteLinksForTracking(em.body_html || `<p>${em.body_text || ""}</p>`, baseUrl, campaign_id, em.lead_id, em.id);
-            const effectiveSender = em.sender_name || campaignSenderName;
             const sendBody: Record<string, unknown> = {
               to: [em.to_email],
               subject: em.subject,
               text: em.body_text,
               html: trackedHtml,
             };
-            if (effectiveSender && inbox.email) {
-              // RFC 5322 From header format: "Display Name" <address>
-              sendBody.headers = {
-                From: `"${sanitizeDisplayName(effectiveSender)}" <${inbox.email}>`,
-              };
-            }
             const r = await agentmailFetch(agentmailKey, `/inboxes/${inbox.inbox_id}/messages/send`, {
               method: "POST",
               body: JSON.stringify(sendBody),
