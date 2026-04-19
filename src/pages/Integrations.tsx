@@ -132,6 +132,11 @@ const ACTIONS: ActionGroup[] = [
         desc: "CRITICAL FOR DEMOS. Seeds a test lead with the user's own email so they can watch send→reply live. Shows as 🧪 TEST in the UI. Always offer this before the first real send in a session.",
         params: "{ campaign_id, email, name?, notes? }",
       },
+      {
+        action: "outreach.leads.enrich_one",
+        desc: "Scrapes the lead's website homepage + /contact + /contact-us for a contact email. Returns the updated lead with email set (or { enriched: false, reason } if none found). Call in a loop for every lead that has a website but no email — Apify's Google Maps scraper rarely returns emails, and this recovers ~40–70%.",
+        params: "{ campaign_id, lead_id }",
+      },
       { action: "outreach.leads.delete", desc: "Remove one lead.", params: "{ campaign_id, lead_id }" },
       {
         action: "outreach.emails.generate_one",
@@ -498,6 +503,16 @@ THE FLOW:
                             watch send→reply live. Shows as 🧪 TEST.
                             ALWAYS offer this before the first send
                             in a new session.
+  outreach.leads.enrich_one { campaign_id, lead_id }
+                            Apify's Google Maps actor rarely returns
+                            emails — most businesses list phone +
+                            website on Google, not email. This action
+                            scrapes the lead's website (homepage +
+                            /contact + /contact-us) and regex's out
+                            email addresses. Call in a loop over every
+                            lead with website-but-no-email AFTER
+                            campaign.sync imports them. Recovers
+                            ~40–70% of emails. Fails open.
   outreach.leads.delete     { campaign_id, lead_id }
 
   outreach.emails.generate_one  { campaign_id, lead_id,

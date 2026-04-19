@@ -122,6 +122,13 @@ Gate 2 (real emails to real people). Everything else is autonomous.
   🧪 TEST in the UI. ALWAYS offer this as a step if the human is
   piloting the flow for the first time.
   params: `{ campaign_id, email, name?, notes? }`
+- `outreach.leads.enrich_one` — **Important after an Apify import.**
+  Google Maps rarely returns emails (phone + website only, typically).
+  After leads import, loop this across every lead with a website but no
+  email. Each call fetches homepage + /contact + /contact-us and regex's
+  out email addresses. Recovers ~40–70% of the missing addresses. Fails
+  open — if a site blocks scraping, we move on.
+  params: `{ campaign_id, lead_id }`
 - `outreach.leads.delete` — removes one lead.
   params: `{ campaign_id, lead_id }`
 
@@ -286,6 +293,17 @@ curl -X POST $AGENT_HQ_URL/api/command ... \
 # (Human: "Yes, add my email as a test — mani@vertical.ai")
 curl -X POST $AGENT_HQ_URL/api/command ... \
   -d '{"action":"outreach.leads.add_test","params":{"campaign_id":"abc123xyz","email":"mani@vertical.ai","name":"Mani (test)"}}'
+
+# 4b. Enrich — Apify Google Maps rarely returns emails, so loop the
+#     enrichment action over every lead with a website but no email.
+MISSING=$(curl -s -X POST $AGENT_HQ_URL/api/command ... \
+  -d '{"action":"outreach.leads.list","params":{"campaign_id":"abc123xyz"}}' \
+  | jq -r '.data[] | select(.email == null and .website != null) | .id')
+for LEAD_ID in $MISSING; do
+  curl -X POST $AGENT_HQ_URL/api/command ... \
+    -d "{\"action\":\"outreach.leads.enrich_one\",\"params\":{\"campaign_id\":\"abc123xyz\",\"lead_id\":\"$LEAD_ID\"}}"
+done
+# Typically 40–70% of those leads now have emails.
 
 # 5. Generate drafts — per-lead loop with live progress narration
 LEADS=$(curl -s -X POST $AGENT_HQ_URL/api/command ... \

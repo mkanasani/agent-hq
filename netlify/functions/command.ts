@@ -353,6 +353,67 @@ async function getApifyDatasetItems(
   return (await r.json()) as Array<Record<string, unknown>>;
 }
 
+// Enrichment — find a contact email by scraping the lead's website.
+// Apify's Google Maps actor only rarely returns emails (most businesses
+// list phone + website on Google, not email). We fetch a handful of
+// well-known contact pages and regex out email addresses. Fails open
+// — if no email is found we just return null.
+async function findEmailFromWebsite(website: string): Promise<{ email: string | null; tried: string[] }> {
+  const tried: string[] = [];
+  let base: URL;
+  try {
+    base = new URL(website);
+  } catch {
+    return { email: null, tried };
+  }
+  // Only try a handful of paths — keeps each call well under Netlify's
+  // 26s cap even when pages are slow.
+  const paths = ["", "/contact", "/contact-us"];
+  const emailRx = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+  const mailtoRx = /mailto:([^"'?\s>]+)/gi;
+  const found = new Set<string>();
+
+  for (const path of paths) {
+    const url = new URL(path, base).toString();
+    tried.push(url);
+    try {
+      const r = await fetch(url, {
+        signal: AbortSignal.timeout(6000),
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; AgentHQ/1.0)",
+          Accept: "text/html,application/xhtml+xml",
+        },
+        redirect: "follow",
+      });
+      if (!r.ok) continue;
+      const text = await r.text();
+      for (const m of text.matchAll(mailtoRx)) {
+        if (m[1]) found.add(m[1].toLowerCase().trim().split("?")[0]);
+      }
+      for (const m of text.matchAll(emailRx)) {
+        if (m[0]) found.add(m[0].toLowerCase().trim());
+      }
+      if (found.size > 0) break; // Stop once we've got a hit.
+    } catch {
+      continue;
+    }
+  }
+
+  // Filter obvious junk + image filenames that matched the email regex.
+  const cleaned = [...found].filter((e) => {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e)) return false;
+    if (/\.(png|jpg|jpeg|gif|webp|svg|ico)$/i.test(e)) return false;
+    if (/^(example|sentry|wixpress|wix|youremail|test)@/i.test(e)) return false;
+    if (/\.(example|wixsite|sentry)\./i.test(e)) return false;
+    return true;
+  });
+  if (cleaned.length === 0) return { email: null, tried };
+
+  // Prefer role-based business addresses over individual ones.
+  const preferred = cleaned.find((e) => /^(info|contact|hello|hi|admin|sales|office|reception|enquiries|inquiries|support)@/i.test(e));
+  return { email: preferred ?? cleaned[0], tried };
+}
+
 function extractLeadFromApify(raw: Record<string, unknown>): {
   name: string;
   email: string | null;
@@ -1260,6 +1321,49 @@ export const handler: Handler = async (event) => {
           }
         }
         return fail(404, "lead not found");
+      }
+
+      case "outreach.leads.enrich_one": {
+        // Scrapes the lead's website looking for a contact email. Runs
+        // one lead at a time so the UI can loop + show progress, and
+        // so we don't blow Netlify's 26s cap on a big campaign. Per-lead
+        // latency is usually 2–5s.
+        const { campaign_id, lead_id } = params as Record<string, string>;
+        if (!campaign_id || !lead_id) return fail(400, "campaign_id and lead_id required");
+        const leadsStore = store(OUTREACH_LEADS);
+        const { blobs } = await leadsStore.list({ prefix: `${campaign_id}/` });
+        let storeKey: string | null = null;
+        let lead: Record<string, unknown> | null = null;
+        for (const b of blobs) {
+          const row = await readJson<Record<string, unknown>>(leadsStore, b.key);
+          if ((row as { id?: string } | null)?.id === lead_id) {
+            lead = row;
+            storeKey = b.key;
+            break;
+          }
+        }
+        if (!lead || !storeKey) return fail(404, "lead not found");
+        if (lead.email) return ok({ ...lead, already_had_email: true, enriched: false });
+        const website = lead.website as string | undefined;
+        if (!website) return ok({ ...lead, enriched: false, reason: "no website to scrape" });
+
+        try {
+          const { email, tried } = await findEmailFromWebsite(website);
+          if (!email) {
+            return ok({ ...lead, enriched: false, tried, reason: "no email found on website" });
+          }
+          const updated = {
+            ...lead,
+            email,
+            enriched_at: new Date().toISOString(),
+            enrichment_source: "website_scrape",
+            updated_at: new Date().toISOString(),
+          };
+          await writeJson(leadsStore, storeKey, updated);
+          return ok({ ...updated, enriched: true, tried });
+        } catch (err) {
+          return fail(500, err instanceof Error ? err.message : "Enrichment failed");
+        }
       }
 
       case "outreach.emails.generate_one": {

@@ -108,6 +108,7 @@ export default function CampaignDetail() {
   const [leadDetail, setLeadDetail] = useState<Lead | null>(null);
   const [emailDetail, setEmailDetail] = useState<EmailRow | null>(null);
   const [generateProgress, setGenerateProgress] = useState<{ done: number; total: number } | null>(null);
+  const [enrichProgress, setEnrichProgress] = useState<{ done: number; total: number; found: number } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -212,6 +213,36 @@ export default function CampaignDetail() {
     } catch (e) {
       alert(e instanceof Error ? e.message : "Delete failed");
     }
+  }
+
+  // Loops through every lead that has a website but no email, scrapes
+  // each site for a contact email, updates the lead record. Runs client-
+  // side so the progress bar reflects real per-lead latency.
+  async function enrichEmails() {
+    if (!id) return;
+    const targets = leads.filter((l) => !l.email && l.website);
+    if (targets.length === 0) return;
+    setEnrichProgress({ done: 0, total: targets.length, found: 0 });
+    setErr(null);
+    let done = 0;
+    let found = 0;
+    for (const lead of targets) {
+      try {
+        const result = await call<{ enriched?: boolean }>("outreach.leads.enrich_one", {
+          campaign_id: id,
+          lead_id: lead.id,
+        });
+        if (result.enriched) found++;
+      } catch {
+        // Per-lead failures shouldn't halt the loop — sites block, time out, etc.
+      }
+      done++;
+      setEnrichProgress({ done, total: targets.length, found });
+      if (done % 3 === 0 || done === targets.length) await refresh();
+    }
+    // Leave progress showing for a beat so the user sees the final count,
+    // then clear it.
+    setTimeout(() => setEnrichProgress(null), 3000);
   }
 
   // Derive counters from the emails array — race-free unlike the cached
@@ -445,13 +476,47 @@ export default function CampaignDetail() {
             <h3 className="font-display text-sm tracking-widest uppercase text-white/75 font-bold">Leads</h3>
             <span className="text-xs font-mono text-white/50">({leads.length})</span>
           </div>
-          <button
-            onClick={() => setTestModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/15 hover:bg-accent/25 border border-accent/40 text-accent text-xs font-bold tracking-wide transition"
-          >
-            <FlaskConical size={13} /> Add test lead
-          </button>
+          <div className="flex items-center gap-2">
+            {(() => {
+              const withoutEmail = leads.filter((l) => !l.email && l.website).length;
+              const enriching = enrichProgress !== null && enrichProgress.done < enrichProgress.total;
+              if (withoutEmail === 0 && !enriching) return null;
+              return (
+                <button
+                  onClick={enrichEmails}
+                  disabled={enriching || withoutEmail === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/15 hover:bg-primary/25 border border-primary/40 text-primary text-xs font-bold tracking-wide transition disabled:opacity-50"
+                >
+                  {enriching ? <Loader2 size={13} className="animate-spin" /> : <Globe size={13} />}
+                  {enriching ? `Finding emails ${enrichProgress!.done}/${enrichProgress!.total}` : `Find emails (${withoutEmail})`}
+                </button>
+              );
+            })()}
+            <button
+              onClick={() => setTestModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/15 hover:bg-accent/25 border border-accent/40 text-accent text-xs font-bold tracking-wide transition"
+            >
+              <FlaskConical size={13} /> Add test lead
+            </button>
+          </div>
         </div>
+
+        {enrichProgress && (
+          <div className="mb-3 flex items-center gap-3 rounded-lg bg-primary/10 border border-primary/30 px-3 py-2">
+            <Loader2 size={13} className={enrichProgress.done < enrichProgress.total ? "animate-spin text-primary" : "text-primary"} />
+            <span className="text-xs text-primary font-mono flex-1">
+              {enrichProgress.done < enrichProgress.total
+                ? `Scraping website ${enrichProgress.done + 1} of ${enrichProgress.total} · ${enrichProgress.found} email${enrichProgress.found === 1 ? "" : "s"} found so far`
+                : `Done · ${enrichProgress.found} of ${enrichProgress.total} sites gave us an email`}
+            </span>
+            <div className="w-28 h-1.5 rounded-full bg-white/5 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${Math.round((enrichProgress.done / Math.max(1, enrichProgress.total)) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
         {leads.length === 0 ? (
           <div className="text-center py-10 text-white/50 text-sm">
             No leads yet. Click <span className="text-white font-semibold">Run Apify scrape</span> above, or add a test lead with your own email.
@@ -789,6 +854,7 @@ function GenerateEmailsModal({
   const existingLeadIds = new Set(existingEmails.map((e) => e.lead_id));
   const eligibleLeads = leads.filter((l) => l.email && !existingLeadIds.has(l.id));
   const skippedNoEmail = leads.filter((l) => !l.email).length;
+  const skippedNoEmailButWebsite = leads.filter((l) => !l.email && l.website).length;
   const skippedAlreadyDrafted = leads.filter((l) => l.email && existingLeadIds.has(l.id)).length;
 
   async function submit(e: React.FormEvent) {
@@ -854,6 +920,13 @@ function GenerateEmailsModal({
             <div className="flex justify-between text-xs">
               <span className="text-amber-300/80">Leads without an email (skipped)</span>
               <span className="font-mono text-amber-300">{skippedNoEmail}</span>
+            </div>
+          )}
+          {skippedNoEmailButWebsite > 0 && (
+            <div className="pt-2 mt-1 border-t border-white/5 text-[11px] text-white/60">
+              💡 Tip: {skippedNoEmailButWebsite} of those have websites. Close this and click
+              <span className="font-semibold text-primary"> Find emails </span>
+              in the Leads card to scrape them first — usually recovers 40–70%.
             </div>
           )}
           {skippedAlreadyDrafted > 0 && (
