@@ -18,8 +18,10 @@ import GlassCard from "@/components/GlassCard";
 import OutreachWizard from "@/components/OutreachWizard";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import WebhookSetupCard from "@/components/WebhookSetupCard";
+import SkillViewerModal from "@/components/SkillViewerModal";
 import { call } from "@/lib/api";
 import { timeAgo } from "@/lib/utils";
+import outreachSkillMd from "../../skills/mission-control-outreach.md?raw";
 
 type Campaign = {
   id: string;
@@ -56,6 +58,7 @@ export default function Outreach() {
   const [loaded, setLoaded] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [skillOpen, setSkillOpen] = useState(false);
   const [config, setConfig] = useState<ConfigStatus | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -129,12 +132,20 @@ export default function Outreach() {
         title="Outreach"
         subtitle="Describe your ICP in one sentence. Your agent finds real businesses, drafts personalised emails, sends from its own inbox, and routes replies back to your kanban."
         right={
-          <button
-            onClick={() => setWizardOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 transition font-bold tracking-wide"
-          >
-            <Plus size={16} /> New campaign
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSkillOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-accent/25 to-purple/25 border border-accent/50 text-white hover:border-accent/80 transition font-bold tracking-wide shadow-glow-accent"
+            >
+              <Sparkles size={16} strokeWidth={2.5} /> Teach Your Agent
+            </button>
+            <button
+              onClick={() => setWizardOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 transition font-bold tracking-wide"
+            >
+              <Plus size={16} /> New campaign
+            </button>
+          </div>
         }
       />
 
@@ -293,6 +304,14 @@ export default function Outreach() {
         onClose={closeOnboarding}
         onlyMissing
         onComplete={() => void refresh()}
+      />
+
+      <SkillViewerModal
+        open={skillOpen}
+        onClose={() => setSkillOpen(false)}
+        title="Outreach Skill — ICP to leads to sends to tracked replies"
+        description="Paste this into your OpenClaw, Claude Code, Hermes, or any agent runtime. It teaches your agent to drive the whole machine: NL preview → Apify scrape → email enrichment → Gemini drafts → AgentMail send → reply loop. Two hard approval gates baked in."
+        skillMarkdown={outreachSkillMd}
       />
     </>
   );

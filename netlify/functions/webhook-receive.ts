@@ -16,17 +16,29 @@ type WebhookRecord = {
   service?: string; // "agentmail" triggers the specialised processor below
 };
 
+// Each message.* event nests the message-identification object under a
+// different top-level key — message.sent → send, message.delivered →
+// delivery, message.bounced → bounce, message.complained → complaint,
+// message.rejected → rejection, message.received → message.
+// We probe all of them so the handler doesn't silently drop events when
+// AgentMail introduces a new shape or we guess wrong.
+type AgentMailIdCarrier = {
+  message_id?: string;
+  thread_id?: string;
+  inbox_id?: string;
+  recipients?: string[];
+  timestamp?: string;
+};
+
 type AgentMailEvent = {
   type?: string;
   event_type?: string;
   event_id?: string;
-  send?: {
-    message_id?: string;
-    thread_id?: string;
-    inbox_id?: string;
-    recipients?: string[];
-    timestamp?: string;
-  };
+  send?: AgentMailIdCarrier;
+  delivery?: AgentMailIdCarrier;
+  bounce?: AgentMailIdCarrier & { type?: string; sub_type?: string };
+  complaint?: AgentMailIdCarrier;
+  rejection?: AgentMailIdCarrier;
   message?: {
     message_id?: string;
     thread_id?: string;
@@ -40,6 +52,37 @@ type AgentMailEvent = {
   };
   thread?: { thread_id?: string };
 };
+
+function extractIds(event: AgentMailEvent): { messageId?: string; threadId?: string } {
+  const carriers = [event.send, event.delivery, event.bounce, event.complaint, event.rejection];
+  for (const c of carriers) {
+    if (c?.message_id || c?.thread_id) {
+      return { messageId: c.message_id, threadId: c.thread_id };
+    }
+  }
+  return {};
+}
+
+// Status rank controls forward-only progression so out-of-order webhooks
+// (e.g. delivered arriving before sent finishes writing) don't regress a
+// replied email back to sent. Negative terminal states (bounced/complained/
+// failed) always win regardless of prior state.
+function statusRank(s: string | undefined): number {
+  return (
+    ({
+      drafted: 0,
+      sent: 1,
+      delivered: 2,
+      clicked: 3,
+      replied: 4,
+    } as Record<string, number>)[s ?? ""] ?? 0
+  );
+}
+
+function shouldAdvanceStatus(current: string | undefined, next: string): boolean {
+  if (["bounced", "complained", "failed"].includes(next)) return true;
+  return statusRank(next) >= statusRank(current);
+}
 
 /**
  * Find the outreach email record that corresponds to an AgentMail message
@@ -70,12 +113,16 @@ async function findOutreachEmailByAgentMailIds(
  */
 async function processAgentMailEvent(event: AgentMailEvent): Promise<void> {
   const eventType = event.event_type ?? "";
-  const send = event.send;
   const message = event.message;
 
-  // Send-lifecycle events share the `send` object shape.
-  if (send && ["message.sent", "message.delivered", "message.bounced", "message.complained", "message.rejected"].includes(eventType)) {
-    const match = await findOutreachEmailByAgentMailIds(send.message_id, send.thread_id);
+  // Outbound send-lifecycle events — each one nests identifiers under a
+  // different key (send/delivery/bounce/complaint/rejection). We probe
+  // all carriers rather than assuming one shape.
+  const OUTBOUND = ["message.sent", "message.delivered", "message.bounced", "message.complained", "message.rejected"];
+  if (OUTBOUND.includes(eventType)) {
+    const { messageId, threadId } = extractIds(event);
+    if (!messageId && !threadId) return;
+    const match = await findOutreachEmailByAgentMailIds(messageId, threadId);
     if (!match) return;
     const newStatus =
       eventType === "message.delivered" ? "delivered" :
@@ -83,6 +130,9 @@ async function processAgentMailEvent(event: AgentMailEvent): Promise<void> {
       eventType === "message.complained" ? "complained" :
       eventType === "message.rejected" ? "failed" :
       "sent";
+    const currentStatus = match.record.status as string | undefined;
+    if (!shouldAdvanceStatus(currentStatus, newStatus)) return; // ignore out-of-order events
+
     const updatedEmail = {
       ...match.record,
       status: newStatus,
@@ -91,7 +141,10 @@ async function processAgentMailEvent(event: AgentMailEvent): Promise<void> {
     };
     await writeJson(store(OUTREACH_EMAILS), match.storeKey, updatedEmail);
 
-    // Bump campaign counters.
+    // Cached campaign counters are race-prone under concurrent webhooks;
+    // the UI derives its counters from emails directly. We still bump
+    // the cache for analytics.summary back-compat but the derived values
+    // are the source of truth.
     const campaignId = match.record.campaign_id as string;
     if (campaignId) {
       const cs = store(OUTREACH_CAMPAIGNS);

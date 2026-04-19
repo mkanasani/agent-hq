@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Copy, ExternalLink, ArrowRight, LayoutTemplate } from "lucide-react";
+import { Plus, Copy, ExternalLink, ArrowRight, LayoutTemplate, Sparkles } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import GlassCard from "@/components/GlassCard";
 import NewFormModal from "@/components/NewFormModal";
+import SkillViewerModal from "@/components/SkillViewerModal";
 import { call } from "@/lib/api";
 import { copyToClipboard } from "@/lib/utils";
 import type { FormConfig, Page } from "@/lib/types";
+import formsSkillMd from "../../skills/mission-control-forms.md?raw";
 
 function pagesLinkedToForm(formSlug: string, allPages: Page[]): Page[] {
   const marker = new RegExp(
@@ -23,6 +25,7 @@ export default function Forms() {
   const [pages, setPages] = useState<Page[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [skillOpen, setSkillOpen] = useState(false);
 
   useEffect(() => {
     void refresh();
@@ -53,12 +56,20 @@ export default function Forms() {
         title="Forms"
         subtitle="Public URLs your agents watch. Link a form to a landing page and every submission flows back here — cancel the Webflow/Squarespace subscription, let your agents publish and own the loop."
         right={
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 transition font-bold tracking-wide"
-          >
-            <Plus size={16} /> New Form
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSkillOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-accent/25 to-purple/25 border border-accent/50 text-white hover:border-accent/80 transition font-bold tracking-wide shadow-glow-accent"
+            >
+              <Sparkles size={16} strokeWidth={2.5} /> Teach Your Agent
+            </button>
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 transition font-bold tracking-wide"
+            >
+              <Plus size={16} /> New Form
+            </button>
+          </div>
         }
       />
 
@@ -167,6 +178,14 @@ export default function Forms() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreated={(f) => setForms((prev) => [f, ...prev])}
+      />
+
+      <SkillViewerModal
+        open={skillOpen}
+        onClose={() => setSkillOpen(false)}
+        title="Forms Skill — public intake in 30 seconds"
+        description="Paste this into your OpenClaw, Claude Code, Hermes, or any agent runtime. Teaches your agent to create typed forms, read submissions, and embed them into landing pages with the {{form:slug}} marker."
+        skillMarkdown={formsSkillMd}
       />
     </>
   );

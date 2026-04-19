@@ -1731,8 +1731,11 @@ export const handler: Handler = async (event) => {
 
       // ── ANALYTICS ─────────────────────────────────────────────────
       case "outreach.analytics.summary": {
-        // Aggregates across all campaigns + per-campaign breakdown.
-        const campaigns = await listJson<{ id: string; name: string; created_at?: string; leads_imported?: number; emails_sent?: number; emails_delivered?: number; emails_bounced?: number; emails_clicked?: number; emails_replied?: number }>(
+        // Derives counters from the emails store instead of the campaign's
+        // cached counters — the cache is race-prone when AgentMail fires
+        // sent+delivered webhooks within the same millisecond. Reading
+        // from emails gives the race-free source of truth.
+        const campaigns = await listJson<{ id: string; name: string; created_at?: string; leads_imported?: number }>(
           store(OUTREACH_CAMPAIGNS),
         );
         const totals = {
@@ -1744,16 +1747,47 @@ export const handler: Handler = async (event) => {
           clicked: 0,
           replied: 0,
         };
+        const perCampaign: Array<{
+          id: string;
+          name: string;
+          created_at?: string;
+          leads_imported?: number;
+          emails_sent: number;
+          emails_delivered: number;
+          emails_bounced: number;
+          emails_clicked: number;
+          emails_replied: number;
+        }> = [];
         for (const c of campaigns) {
+          const emails = await listJson<{ status?: string; click_count?: number }>(
+            store(OUTREACH_EMAILS),
+            `${c.id}/`,
+          );
+          const sent = emails.filter((e) => e.status && e.status !== "drafted").length;
+          const delivered = emails.filter((e) => ["delivered", "clicked", "replied"].includes(e.status ?? "")).length;
+          const clicked = emails.filter((e) => e.status === "clicked" || e.status === "replied" || (e.click_count ?? 0) > 0).length;
+          const replied = emails.filter((e) => e.status === "replied").length;
+          const bounced = emails.filter((e) => ["bounced", "complained", "failed"].includes(e.status ?? "")).length;
           totals.leads += c.leads_imported ?? 0;
-          totals.sent += c.emails_sent ?? 0;
-          totals.delivered += c.emails_delivered ?? 0;
-          totals.bounced += c.emails_bounced ?? 0;
-          totals.clicked += c.emails_clicked ?? 0;
-          totals.replied += c.emails_replied ?? 0;
+          totals.sent += sent;
+          totals.delivered += delivered;
+          totals.clicked += clicked;
+          totals.replied += replied;
+          totals.bounced += bounced;
+          perCampaign.push({
+            id: c.id,
+            name: c.name,
+            created_at: c.created_at,
+            leads_imported: c.leads_imported,
+            emails_sent: sent,
+            emails_delivered: delivered,
+            emails_bounced: bounced,
+            emails_clicked: clicked,
+            emails_replied: replied,
+          });
         }
-        campaigns.sort((a, b) => ((a.created_at ?? "") < (b.created_at ?? "") ? 1 : -1));
-        return ok({ totals, campaigns: campaigns.slice(0, 50) });
+        perCampaign.sort((a, b) => ((a.created_at ?? "") < (b.created_at ?? "") ? 1 : -1));
+        return ok({ totals, campaigns: perCampaign.slice(0, 50) });
       }
 
       // ── WEBHOOK HEALTH TEST ───────────────────────────────────────
